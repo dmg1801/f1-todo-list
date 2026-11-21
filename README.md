@@ -1,4 +1,4 @@
-# Pitwall GP
+# F1 To-Do-List
 
 Lista de tareas gamificada como una carrera de monoplazas. Cada tarea es una vuelta: al completarla, tu coche adelanta a un rival, la radio del equipo lo celebra y, a mitad de carrera, entras en boxes. Incluye un temporizador **Pomodoro**. Funciona en móvil y escritorio, en español, inglés, alemán y turco.
 
@@ -24,7 +24,7 @@ Abrir `index.html` con doble clic (`file://`) no funciona: los navegadores bloqu
 1. Crea un repositorio en GitHub (por ejemplo `pitwall-gp`).
 2. Sube el **contenido** de la carpeta extraída a la raíz de la rama `main`: `index.html`, `.nojekyll`, `css/`, `js/`, `assets/`, etc. `index.html` debe quedar en la raíz del repositorio, no dentro de una subcarpeta.
    - Desde la web: *Add file → Upload files* y arrastra todo el contenido. El archivo `.nojekyll` está oculto en algunos sistemas; si no lo ves, créalo vacío desde GitHub (*Add file → Create new file*).
-   - Con git: `git init`, `git add .`, `git commit -m "Pitwall GP"`, `git branch -M main`, `git remote add origin …`, `git push -u origin main`.
+   - Con git: `git init`, `git add .`, `git commit -m "F1 To-Do-List"`, `git branch -M main`, `git remote add origin …`, `git push -u origin main`.
 3. En el repositorio: *Settings → Pages → Build and deployment → Source: Deploy from a branch*. Elige la rama `main` y la carpeta `/ (root)`, y guarda.
 4. Tras uno o dos minutos la app estará en `https://USUARIO.github.io/REPOSITORIO/`.
 
@@ -111,17 +111,17 @@ Para añadir un idioma, copia el bloque `es`, tradúcelo, regístralo en `LANGS`
 
 Cada escudería usa `assets/teams/<id>.svg` (por ejemplo `assets/teams/apex-gp.svg`). Para cambiar uno, sustituye el archivo por otro **con el mismo nombre**, preferiblemente SVG cuadrado (`viewBox="0 0 64 64"`) para que se vea nítido a 40 px. Si quieres usar PNG, cambia la extensión en el campo `emblem` de `js/teams.js`.
 
-Los emblemas incluidos son **diseños originales de Pitwall GP**, distintos de los logotipos de las marcas. Solo sustituyas un archivo por un escudo oficial si tienes permiso para redistribuirlo en este proyecto, y documenta aquí su origen y licencia.
+Los emblemas incluidos son **diseños originales de F1 To-Do-List**, distintos de los logotipos de las marcas. Solo sustituyas un archivo por un escudo oficial si tienes permiso para redistribuirlo en este proyecto, y documenta aquí su origen y licencia.
 
 ### Origen y licencia de los recursos
 
 | Recurso | Origen | Licencia |
 |---|---|---|
-| `assets/teams/*.svg` | Diseños originales creados para Pitwall GP | Distribuidos con el proyecto |
-| `assets/icons/*` | Diseño original creado para Pitwall GP | Distribuidos con el proyecto |
-| `assets/flags/*.svg` | Dibujadas para Pitwall GP a partir de los diseños de las banderas nacionales | Las banderas nacionales son de dominio público |
+| `assets/teams/*.svg` | Diseños originales creados para F1 To-Do-List | Distribuidos con el proyecto |
+| `assets/icons/*` | Diseño original creado para F1 To-Do-List | Distribuidos con el proyecto |
+| `assets/flags/*.svg` | Dibujadas para F1 To-Do-List a partir de los diseños de las banderas nacionales | Las banderas nacionales son de dominio público |
 
-El proyecto no incluye recursos de terceros ni carga nada desde webs externas. Los nombres de escudería se usan solo como etiquetas del selector. Pitwall GP no tiene relación con esas marcas.
+El proyecto no incluye recursos de terceros ni carga nada desde webs externas. Los nombres de escudería se usan solo como etiquetas del selector. F1 To-Do-List no tiene relación con esas marcas.
 
 ## Accesibilidad y rendimiento
 

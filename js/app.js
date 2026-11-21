@@ -1,4 +1,4 @@
-// Pitwall GP: arranque, interfaz y lógica de tareas.
+// F1 To-Do-List: arranque, interfaz y lógica de tareas.
 import { t, setLang, getLang, applyStatic, fmtDateTime } from './i18n.js';
 import { load, save, standings, newId } from './store.js';
 import { TEAMS, getTeam, emblemPath, inkFor } from './teams.js';
@@ -561,7 +561,7 @@ function playChime(name) {
 function pomoAnnounce(key, params) {
   pushRadio(key, params);
   $('pomoLive').textContent = t(key, params);
-  if (document.visibilityState !== 'visible' || !document.hasFocus()) reminders.notify(`${t('pomoTitle')} · Pitwall GP`, t(key, params));
+  if (document.visibilityState !== 'visible' || !document.hasFocus()) reminders.notify(`${t('pomoTitle')} · F1 To-Do-List`, t(key, params));
 }
 
 pomodoro = new Pomodoro(state.pomodoro, {
@@ -613,7 +613,7 @@ function renderPomoTime() {
   $('pomoTime').textContent = time;
   $('pomoTime').setAttribute('aria-label', t('pomoTimeAria', { time }));
   $('pomoRing').style.strokeDashoffset = String(RING * (1 - rem / pomodoro.total()));
-  if (d.phase !== 'idle') document.title = `${d.paused ? '⏸' : '▶'} ${time} · ${t('pomo_' + d.phase)} · Pitwall GP`;
+  if (d.phase !== 'idle') document.title = `${d.paused ? '⏸' : '▶'} ${time} · ${t('pomo_' + d.phase)} · F1 To-Do-List`;
   else document.title = t('docTitle');
 }
 
