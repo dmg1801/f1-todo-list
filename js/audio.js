@@ -17,6 +17,7 @@ class AudioEngine {
   }
 
   playLapMusic() {
+    if (!this.enabled) return;
     if (!this.lapMusic) {
       this.lapMusic = new Audio(new URL('../assets/f1-to-do-list.mp3', import.meta.url));
     }
@@ -26,6 +27,12 @@ class AudioEngine {
     if (playback && typeof playback.catch === 'function') {
       playback.catch(error => console.error('No se pudo reproducir la música de la vuelta.', error));
     }
+  }
+
+  stopLapMusic() {
+    if (!this.lapMusic) return;
+    this.lapMusic.pause();
+    this.lapMusic.currentTime = 0;
   }
 
   unlock() {
@@ -49,6 +56,7 @@ class AudioEngine {
     if (this.enabled) this.unlock();
     else {
       this.engineOff();
+      this.stopLapMusic();
       if ('speechSynthesis' in window) try { speechSynthesis.cancel(); } catch (e) {}
     }
   }
