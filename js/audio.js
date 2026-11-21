@@ -11,8 +11,21 @@ class AudioEngine {
     this.unlocked = false;
     this.lastSpeak = 0;
     this.chimesOn = false; // sonidos del pomodoro (independientes del sonido general)
+    this.lapMusic = null;
     const unlock = () => this.unlock();
     ['pointerdown', 'keydown', 'touchstart'].forEach(ev => window.addEventListener(ev, unlock, { passive: true }));
+  }
+
+  playLapMusic() {
+    if (!this.lapMusic) {
+      this.lapMusic = new Audio(new URL('../assets/f1-to-do-list.mp3', import.meta.url));
+    }
+    if (!this.lapMusic.paused && !this.lapMusic.ended) return;
+    this.lapMusic.currentTime = 0;
+    const playback = this.lapMusic.play();
+    if (playback && typeof playback.catch === 'function') {
+      playback.catch(error => console.error('No se pudo reproducir la música de la vuelta.', error));
+    }
   }
 
   unlock() {

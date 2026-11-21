@@ -417,6 +417,7 @@ function addTask(title, due, alarm) {
   const prev = standings(state.tasks);
   const task = { id: newId(), title, due, alarm, done: false, fired: false, dismissed: false, late: false, created: Date.now(), completedAt: null };
   state.tasks.push(task);
+  audio.playLapMusic();
   persist();
   const next = standings(state.tasks);
   pushRadio('r_added', { title });
