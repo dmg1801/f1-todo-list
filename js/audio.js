@@ -1,0 +1,140 @@
+// Efectos con Web Audio y voz con speechSynthesis. Todo es opcional:
+// si falta una API, la app sigue funcionando en silencio.
+const VOICE_LOCALES = { es: 'es-ES', en: 'en-GB', de: 'de-DE', tr: 'tr-TR' };
+
+class AudioEngine {
+  constructor() {
+    this.enabled = false;
+    this.ctx = null;
+    this.master = null;
+    this.engine = null;
+    this.unlocked = false;
+    this.lastSpeak = 0;
+    const unlock = () => this.unlock();
+    ['pointerdown', 'keydown', 'touchstart'].forEach(ev => window.addEventListener(ev, unlock, { passive: true }));
+  }
+
+  unlock() {
+    if (!this.enabled) return;
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return;
+    try {
+      if (!this.ctx) {
+        this.ctx = new AC();
+        this.master = this.ctx.createGain();
+        this.master.gain.value = 0.6;
+        this.master.connect(this.ctx.destination);
+      }
+      if (this.ctx.state === 'suspended') this.ctx.resume();
+      this.unlocked = true;
+    } catch (e) { /* sin audio */ }
+  }
+
+  setEnabled(on) {
+    this.enabled = !!on;
+    if (this.enabled) this.unlock();
+    else {
+      this.engineOff();
+      if ('speechSynthesis' in window) try { speechSynthesis.cancel(); } catch (e) {}
+    }
+  }
+
+  ready() { return this.enabled && this.ctx && this.ctx.state === 'running'; }
+
+  // Motor continuo: dos osciladores con filtro paso bajo.
+  engineUpdate(level, rpm) {
+    if (!this.ready()) return;
+    const c = this.ctx;
+    if (!this.engine) {
+      const o1 = c.createOscillator(), o2 = c.createOscillator();
+      const f = c.createBiquadFilter(), g = c.createGain();
+      o1.type = 'sawtooth'; o2.type = 'square';
+      f.type = 'lowpass'; f.frequency.value = 700;
+      g.gain.value = 0;
+      o1.connect(f); o2.connect(f); f.connect(g); g.connect(this.master);
+      o1.start(); o2.start();
+      this.engine = { o1, o2, f, g };
+    }
+    const e = this.engine, now = c.currentTime;
+    const freq = 55 + rpm * 120;
+    e.o1.frequency.setTargetAtTime(freq, now, 0.08);
+    e.o2.frequency.setTargetAtTime(freq * 0.501, now, 0.08);
+    e.f.frequency.setTargetAtTime(400 + rpm * 1400, now, 0.1);
+    e.g.gain.setTargetAtTime(0.045 * level, now, 0.15);
+  }
+
+  engineOff() {
+    if (this.engine && this.ctx) {
+      this.engine.g.gain.setTargetAtTime(0, this.ctx.currentTime, 0.1);
+    }
+  }
+
+  noise(dur) {
+    const c = this.ctx, len = Math.floor(c.sampleRate * dur);
+    const buf = c.createBuffer(1, len, c.sampleRate), d = buf.getChannelData(0);
+    for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+    const s = c.createBufferSource(); s.buffer = buf; return s;
+  }
+
+  tone(freq, start, dur, type = 'sine', vol = 0.2) {
+    const c = this.ctx, o = c.createOscillator(), g = c.createGain();
+    o.type = type; o.frequency.value = freq;
+    g.gain.setValueAtTime(0.0001, start);
+    g.gain.exponentialRampToValueAtTime(vol, start + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001, start + dur);
+    o.connect(g); g.connect(this.master); o.start(start); o.stop(start + dur + 0.05);
+  }
+
+  sfx(name) {
+    if (!this.ready()) return;
+    const c = this.ctx, now = c.currentTime;
+    try {
+      if (name === 'overtake') {
+        const n = this.noise(0.9), f = c.createBiquadFilter(), g = c.createGain();
+        f.type = 'bandpass'; f.Q.value = 1.4;
+        f.frequency.setValueAtTime(300, now); f.frequency.exponentialRampToValueAtTime(2600, now + 0.45); f.frequency.exponentialRampToValueAtTime(500, now + 0.9);
+        g.gain.setValueAtTime(0.0001, now); g.gain.exponentialRampToValueAtTime(0.35, now + 0.4); g.gain.exponentialRampToValueAtTime(0.0001, now + 0.9);
+        n.connect(f); f.connect(g); g.connect(this.master); n.start(now);
+      } else if (name === 'gun') {
+        for (let i = 0; i < 7; i++) {
+          const n = this.noise(0.05), f = c.createBiquadFilter(), g = c.createGain(), t0 = now + i * 0.065;
+          f.type = 'highpass'; f.frequency.value = 1800;
+          g.gain.setValueAtTime(0.25, t0); g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.05);
+          n.connect(f); f.connect(g); g.connect(this.master); n.start(t0);
+        }
+      } else if (name === 'tool') {
+        this.tone(1400, now, 0.08, 'square', 0.06); this.tone(1100, now + 0.1, 0.08, 'square', 0.06);
+      } else if (name === 'reminder') {
+        [880, 1175, 1568].forEach((f, i) => this.tone(f, now + i * 0.16, 0.35, 'triangle', 0.22));
+      } else if (name === 'victory') {
+        [523, 659, 784, 1047, 784, 1047].forEach((f, i) => this.tone(f, now + i * 0.14, i === 5 ? 0.8 : 0.22, 'triangle', 0.22));
+      } else if (name === 'lights') {
+        this.tone(660, now, 0.18, 'square', 0.08);
+      } else if (name === 'go') {
+        this.tone(990, now, 0.4, 'square', 0.1);
+      }
+    } catch (e) { /* ignorar */ }
+  }
+
+  // Voz: cancela la anterior para no superponer.
+  speak(text, lang) {
+    if (!this.enabled || !('speechSynthesis' in window) || !window.SpeechSynthesisUtterance) return;
+    try {
+      speechSynthesis.cancel();
+      const u = new SpeechSynthesisUtterance(text);
+      const loc = VOICE_LOCALES[lang] || 'es-ES';
+      u.lang = loc;
+      const voices = speechSynthesis.getVoices() || [];
+      const v = voices.find(v => v.lang === loc) || voices.find(v => v.lang && v.lang.toLowerCase().startsWith(lang));
+      if (v) u.voice = v;
+      u.rate = 1.08; u.volume = 0.9;
+      speechSynthesis.speak(u);
+    } catch (e) { /* ignorar */ }
+  }
+
+  stopVoice() {
+    if ('speechSynthesis' in window) try { speechSynthesis.cancel(); } catch (e) {}
+  }
+}
+
+export const audio = new AudioEngine();

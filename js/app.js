@@ -1,0 +1,617 @@
+// Pitwall GP: arranque, interfaz y lógica de tareas.
+import { t, setLang, getLang, applyStatic, fmtDateTime } from './i18n.js';
+import { load, save, standings, newId } from './store.js';
+import { TEAMS, getTeam, emblemPath, inkFor } from './teams.js';
+import { audio } from './audio.js';
+import { Reminders } from './reminders.js';
+import { Director } from './scene/director.js';
+
+TEAMS.forEach(tm => { tm.ink = inkFor(tm.ui); });
+
+const state = load();
+const $ = id => document.getElementById(id);
+const reduceMQ = window.matchMedia ? matchMedia('(prefers-reduced-motion: reduce)') : { matches: false, addEventListener() {} };
+const motionOn = () => (state.motion === null ? !reduceMQ.matches : state.motion);
+
+let filter = 'all';
+let radio = [];
+let subtitle = null;
+let subtitleTimer = null;
+let confirmSpec = null;
+let editingId = null;
+let sceneState = 'garage';
+
+const ICON = {
+  check: '<svg aria-hidden="true" viewBox="0 0 24 24" width="22" height="22"><path fill="currentColor" d="m9.5 16.6-4.1-4.1L4 13.9l5.5 5.5L20 8.9l-1.4-1.4z"/></svg>',
+  edit: '<svg aria-hidden="true" viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M4 17.3V20h2.7l8-8-2.7-2.7-8 8ZM17.7 9l1.6-1.6a1 1 0 0 0 0-1.4l-1.3-1.3a1 1 0 0 0-1.4 0L15 6.3 17.7 9Z"/></svg>',
+  del: '<svg aria-hidden="true" viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M9 3h6l1 2h4v2H4V5h4l1-2Zm-3 6h12l-1 12H7L6 9Zm4 2v8h1.5v-8H10Zm2.5 0v8H14v-8h-1.5Z"/></svg>',
+  clock: '<svg aria-hidden="true" viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm1 10.4 3.5 2.1-.8 1.3L11 13V7h2v5.4Z"/></svg>',
+  warn: '<svg aria-hidden="true" viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M1 21 12 2l11 19H1Zm12-3v-2h-2v2h2Zm0-4V9h-2v5h2Z"/></svg>',
+  done: '<svg aria-hidden="true" viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm-1.5 14.5L6 12l1.4-1.4 3.1 3.1 6.1-6.1L18 9l-7.5 7.5Z"/></svg>',
+  flag: '<svg aria-hidden="true" viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M5 21V3h2v1h12l-2 4 2 4H7v9H5Z"/></svg>',
+  bell: '<svg aria-hidden="true" viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M12 22a2.5 2.5 0 0 0 2.5-2.5h-5A2.5 2.5 0 0 0 12 22Zm7-6V11a7 7 0 0 0-5.5-6.8V3h-3v1.2A7 7 0 0 0 5 11v5l-2 2v1h18v-1l-2-2Z"/></svg>'
+};
+
+function persist() { save(state); }
+
+// ---------- fechas de formulario ----------
+function toLocalInput(ts) {
+  if (ts == null) return '';
+  const d = new Date(ts), p = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+function fromLocalInput(v) {
+  if (!v) return null;
+  const ts = new Date(v).getTime();
+  return Number.isFinite(ts) ? ts : null;
+}
+
+// ---------- escudería ----------
+function applyTeam() {
+  const team = getTeam(state.team);
+  const r = document.documentElement.style;
+  r.setProperty('--accent', team.ui);
+  r.setProperty('--accent-2', team.ui2);
+  r.setProperty('--accent-ink', team.ink);
+  r.setProperty('--livery', team.livery.body);
+  r.setProperty('--livery-trim', team.livery.trim);
+  $('teamEmblem').src = emblemPath(team);
+  $('teamName').textContent = team.name;
+  $('teamSelect').value = team.id;
+  document.querySelector('meta[name="theme-color"]').setAttribute('content', '#0d0f14');
+  if (director && !director.animated) director.renderFrame(0);
+}
+
+function buildTeamSelect() {
+  const sel = $('teamSelect');
+  sel.textContent = '';
+  for (const tm of TEAMS) {
+    const o = document.createElement('option');
+    o.value = tm.id; o.textContent = tm.name;
+    sel.appendChild(o);
+  }
+}
+
+// ---------- radio ----------
+function pushRadio(key, params = {}) {
+  const top = radio[0];
+  if (top && top.key === key && JSON.stringify(top.params) === JSON.stringify(params) && Date.now() - top.at < 1500) return;
+  radio.unshift({ key, params, at: Date.now() });
+  radio = radio.slice(0, 8);
+  renderRadio();
+}
+const timeFmt = () => new Intl.DateTimeFormat(document.documentElement.lang, { hour: '2-digit', minute: '2-digit' });
+function renderRadio() {
+  const ol = $('radioLog');
+  ol.textContent = '';
+  const tf = timeFmt();
+  radio.forEach((m, i) => {
+    const li = document.createElement('li');
+    if (i === 0) li.className = 'latest';
+    const tm = document.createElement('time');
+    tm.dateTime = new Date(m.at).toISOString();
+    tm.textContent = tf.format(m.at);
+    const sp = document.createElement('span');
+    sp.textContent = t(m.key, m.params);
+    li.append(tm, sp);
+    ol.appendChild(li);
+  });
+}
+
+// ---------- subtítulos ----------
+function setSubtitle(role, key) {
+  subtitle = role ? { role, key } : null;
+  clearTimeout(subtitleTimer);
+  if (subtitle) subtitleTimer = setTimeout(() => { subtitle = null; renderSubtitle(); }, 4200);
+  renderSubtitle();
+}
+function renderSubtitle() {
+  const box = $('subtitle');
+  if (!subtitle) { box.hidden = true; return; }
+  box.hidden = false;
+  box.dataset.role = subtitle.role;
+  $('subtitleSpeaker').textContent = t('role_' + subtitle.role);
+  $('subtitleLine').textContent = t(subtitle.key);
+}
+
+// ---------- estadísticas y estado ----------
+function renderStats() {
+  const s = standings(state.tasks);
+  $('statPos').textContent = 'P' + s.position;
+  $('statLaps').textContent = `${s.done}/${s.total}`;
+  $('statOvertakes').textContent = String(s.overtakes);
+  $('statPending').textContent = String(s.pending);
+  renderSceneLabel();
+}
+
+function renderSceneLabel() {
+  const s = standings(state.tasks);
+  const name = t('state_' + sceneState);
+  $('scene').setAttribute('aria-label', t('sceneLabel', { state: name, pos: s.position, done: s.done, total: s.total }));
+  $('stateText').textContent = `${t('stateLabel')}: ${name}` + (motionOn() ? '' : ` · ${t('pausedSuffix')}`);
+  $('stateChip').dataset.state = sceneState;
+  const vb = $('victoryBanner');
+  const won = sceneState === 'victory' && s.total > 0 && s.done === s.total;
+  vb.hidden = !won;
+  if (won) $('victoryBody').textContent = t('victoryBody', { n: s.total });
+}
+
+function renderControls() {
+  const s = standings(state.tasks);
+  const browsing = director ? director.browsing : false;
+  const busy = sceneState === 'pit' || sceneState === 'assembly';
+  const running = director && director.race === 'running';
+  const gb = $('garageBtn');
+  gb.setAttribute('aria-pressed', String(browsing));
+  $('garageBtnText').textContent = browsing ? t('btnTrack') : t('btnGarage');
+  gb.disabled = !running || busy;
+  $('pitBtn').disabled = !running || busy || s.pending === 0 || (director && director.queue.some(e => e.type === 'pit'));
+  const m = motionOn();
+  $('pauseBtn').setAttribute('aria-pressed', String(!m));
+  $('pauseBtnText').textContent = m ? t('btnPause') : t('btnResume');
+  $('soundBtn').setAttribute('aria-pressed', String(state.sound));
+  $('soundBtnText').textContent = `${t('btnSound')}: ${state.sound ? t('on') : t('off')}`;
+  $('soundToggle').checked = state.sound;
+  $('motionToggle').checked = m;
+  $('newRaceBtn').disabled = state.tasks.length === 0;
+}
+
+// ---------- lista de tareas ----------
+function isOverdue(task, now = Date.now()) { return !task.done && task.due != null && task.due < now; }
+
+function orderedTasks() {
+  const byDue = (a, b) => {
+    const da = a.due ?? Infinity, db = b.due ?? Infinity;
+    if (da !== db) return da < db ? -1 : 1;
+    return a.created - b.created;
+  };
+  const pending = state.tasks.filter(x => !x.done).sort(byDue);
+  const done = state.tasks.filter(x => x.done).sort((a, b) => (b.completedAt || 0) - (a.completedAt || 0));
+  if (filter === 'pending') return pending;
+  if (filter === 'done') return done;
+  return pending.concat(done);
+}
+
+function el(tag, cls, text) {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (text != null) e.textContent = text;
+  return e;
+}
+
+function renderList() {
+  const list = $('taskList');
+  // conservar foco
+  const act = document.activeElement;
+  const li = act && act.closest ? act.closest('.task') : null;
+  const keep = li && list.contains(li) ? { id: li.dataset.id, action: act.dataset.action } : null;
+
+  list.textContent = '';
+  const now = Date.now();
+  for (const task of orderedTasks()) {
+    const status = task.done ? 'done' : isOverdue(task, now) ? 'overdue' : 'pending';
+    const item = el('li', `task is-${status}`);
+    item.dataset.id = task.id;
+
+    const check = el('button', 'check');
+    check.type = 'button';
+    check.dataset.action = 'toggle';
+    check.setAttribute('aria-pressed', String(task.done));
+    check.setAttribute('aria-label', t(task.done ? 'reopenAria' : 'completeAria', { title: task.title }));
+    check.innerHTML = ICON.check;
+
+    const body = el('div', 'task-body');
+    body.appendChild(el('p', 'task-title', task.title));
+    const meta = el('p', 'task-meta');
+    const badge = el('span', `badge badge-${status}`);
+    badge.innerHTML = status === 'done' ? ICON.done : status === 'overdue' ? ICON.warn : ICON.clock;
+    badge.appendChild(el('span', '', t('st_' + status)));
+    meta.appendChild(badge);
+    const due = el('span', 'meta-item');
+    due.innerHTML = ICON.flag;
+    due.appendChild(el('span', '', task.due != null ? t('dueLabel', { date: fmtDateTime(task.due) }) : t('noDate')));
+    meta.appendChild(due);
+    if (task.alarm != null) {
+      const al = el('span', 'meta-item' + (task.fired ? ' fired' : ''));
+      al.innerHTML = ICON.bell;
+      al.appendChild(el('span', '', t('alarmLabel', { date: fmtDateTime(task.alarm) }) + (task.fired ? ` · ${t('alarmFired')}` : '')));
+      meta.appendChild(al);
+    }
+    body.appendChild(meta);
+
+    const actions = el('div', 'task-actions');
+    const eb = el('button', 'btn btn-icon btn-ghost');
+    eb.type = 'button'; eb.dataset.action = 'edit';
+    eb.setAttribute('aria-label', t('editAria', { title: task.title }));
+    eb.innerHTML = ICON.edit;
+    const db = el('button', 'btn btn-icon btn-ghost btn-del');
+    db.type = 'button'; db.dataset.action = 'delete';
+    db.setAttribute('aria-label', t('deleteAria', { title: task.title }));
+    db.innerHTML = ICON.del;
+    actions.append(eb, db);
+
+    item.append(check, body, actions);
+    list.appendChild(item);
+  }
+  const counts = { all: state.tasks.length, pending: state.tasks.filter(x => !x.done).length, done: state.tasks.filter(x => x.done).length };
+  $('countAll').textContent = counts.all;
+  $('countPending').textContent = counts.pending;
+  $('countDone').textContent = counts.done;
+  document.querySelectorAll('.filter').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.filter === filter)));
+  const empty = $('emptyState');
+  const shown = list.children.length;
+  empty.hidden = shown > 0;
+  if (!shown) empty.textContent = t(filter === 'all' ? 'empty_all' : filter === 'pending' ? 'empty_pending' : 'empty_done');
+
+  if (keep) {
+    const again = list.querySelector(`.task[data-id="${CSS.escape(keep.id)}"] [data-action="${keep.action}"]`);
+    if (again) again.focus();
+  }
+}
+
+// ---------- avisos ----------
+function renderToasts() {
+  const box = $('toasts');
+  const active = reminders.active();
+  const ids = new Set(active.map(x => x.id));
+  box.querySelectorAll('.toast').forEach(n => { if (!ids.has(n.dataset.id)) n.remove(); });
+  for (const task of active) {
+    let n = box.querySelector(`.toast[data-id="${CSS.escape(task.id)}"]`);
+    if (!n) {
+      n = el('div', 'toast');
+      n.dataset.id = task.id;
+      n.setAttribute('role', 'alert');
+      const ic = el('span', 'toast-icon'); ic.innerHTML = ICON.bell;
+      const tx = el('div', 'toast-text');
+      tx.append(el('strong', 'toast-head'), el('p', 'toast-title'), el('p', 'toast-when'));
+      const b = el('button', 'btn btn-accent toast-dismiss');
+      b.type = 'button';
+      b.addEventListener('click', () => dismissReminder(task.id));
+      n.append(ic, tx, b);
+      box.appendChild(n);
+    }
+    n.querySelector('.toast-head').textContent = t('toastTitle');
+    n.querySelector('.toast-title').textContent = task.title;
+    n.querySelector('.toast-when').textContent = task.late ? t('toastLate', { time: fmtDateTime(task.alarm) }) : t('toastAt', { time: fmtDateTime(task.alarm) });
+    const b = n.querySelector('.toast-dismiss');
+    b.textContent = t('dismiss');
+    b.setAttribute('aria-label', t('dismissAria', { title: task.title }));
+  }
+}
+
+function dismissReminder(id) {
+  const task = state.tasks.find(x => x.id === id);
+  if (task) { task.dismissed = true; persist(); }
+  renderToasts();
+}
+
+function renderNotif() {
+  const p = Reminders.permission();
+  $('notifStatus').textContent = t('notif_' + (p === 'granted' || p === 'denied' || p === 'unsupported' ? p : 'default'));
+  $('notifBtn').hidden = p !== 'default';
+}
+
+// ---------- diálogos ----------
+function confirmBox(spec) {
+  return new Promise(resolve => {
+    const d = $('confirmDialog');
+    confirmSpec = spec;
+    renderConfirm();
+    d.returnValue = '';
+    d.addEventListener('close', () => { confirmSpec = null; resolve(d.returnValue === 'ok'); }, { once: true });
+    d.showModal();
+    $('confirmCancel').focus();
+  });
+}
+function renderConfirm() {
+  if (!confirmSpec) return;
+  $('confirmTitle').textContent = t(confirmSpec.title);
+  $('confirmBody').textContent = t(confirmSpec.body, confirmSpec.params || {});
+  $('confirmOk').textContent = t(confirmSpec.ok);
+  $('confirmCancel').textContent = t('cancel');
+}
+
+function openEdit(id) {
+  const task = state.tasks.find(x => x.id === id);
+  if (!task) return;
+  editingId = id;
+  $('editTitle').value = task.title;
+  $('editDue').value = toLocalInput(task.due);
+  $('editAlarm').value = toLocalInput(task.alarm);
+  $('editError').textContent = '';
+  $('editTitle').removeAttribute('aria-invalid');
+  $('editDialog').showModal();
+  $('editTitle').focus();
+}
+function closeEdit() {
+  const d = $('editDialog');
+  if (d.open) d.close();
+}
+function focusTask(id, action) {
+  const b = document.querySelector(`.task[data-id="${CSS.escape(id)}"] [data-action="${action}"]`);
+  if (b) b.focus(); else $('taskTitle').focus();
+}
+
+// ---------- carrera ----------
+function maybeAutoPit(next) {
+  if (next.done >= next.total) return;
+  const long = next.total >= 6;
+  const half = Math.ceil(next.total / 2);
+  const hit = long ? next.done % 2 === 0 : next.done === half;
+  if (hit && !state.pitLaps.includes(next.done)) {
+    state.pitLaps.push(next.done);
+    persist();
+    director.enqueue({ type: 'pit' });
+    pushRadio('r_pit');
+  }
+}
+
+function onProgress(prev, next, cause, task) {
+  if (next.total === 0) { director.setModel(next); director.empty(); return; }
+  director.setModel(next);
+  if (cause === 'add') {
+    if (director.race === 'empty' && !director.queue.some(e => e.type === 'assembly') && !(director.current && director.current.type === 'assembly')) {
+      director.enqueue({ type: 'assembly' });
+      pushRadio('r_assembly');
+    } else if (prev.total > 0 && prev.done === prev.total) director.unwin();
+    if (prev.total > 0 && next.position > prev.position) pushRadio('r_lost', { n: next.position - prev.position, pos: next.position });
+  } else if (cause === 'complete') {
+    const gain = prev.position - next.position;
+    director.enqueue({ type: 'overtake', laps: 1, backmarker: gain === 0 });
+    if (gain > 0) pushRadio('r_lap', { n: gain, done: next.done, total: next.total, pos: next.position });
+    else pushRadio('r_lapSame', { done: next.done, total: next.total, pos: next.position });
+    if (next.done === next.total) { director.enqueue({ type: 'victory' }); pushRadio('r_victory'); }
+    else maybeAutoPit(next);
+  } else if (cause === 'reopen') {
+    if (prev.done === prev.total) director.unwin();
+    pushRadio('r_reopen', { title: task.title });
+    if (next.position > prev.position) pushRadio('r_lost', { n: next.position - prev.position, pos: next.position });
+  } else if (cause === 'delete') {
+    pushRadio('r_deleted');
+    if (next.done === next.total && prev.done !== prev.total && director.race === 'running') { director.enqueue({ type: 'victory' }); pushRadio('r_victory'); }
+  }
+}
+
+function renderAll() {
+  renderStats();
+  renderList();
+  renderControls();
+  renderToasts();
+}
+
+// ---------- acciones ----------
+function addTask(title, due, alarm) {
+  const prev = standings(state.tasks);
+  const task = { id: newId(), title, due, alarm, done: false, fired: false, dismissed: false, late: false, created: Date.now(), completedAt: null };
+  state.tasks.push(task);
+  persist();
+  const next = standings(state.tasks);
+  pushRadio('r_added', { title });
+  onProgress(prev, next, 'add', task);
+  renderAll();
+  reminders.check();
+}
+
+function toggleTask(id) {
+  const task = state.tasks.find(x => x.id === id);
+  if (!task) return;
+  const prev = standings(state.tasks);
+  task.done = !task.done;
+  task.completedAt = task.done ? Date.now() : null;
+  if (task.done && task.fired) task.dismissed = true; // completar quita el aviso activo
+  persist();
+  const next = standings(state.tasks);
+  onProgress(prev, next, task.done ? 'complete' : 'reopen', task);
+  renderAll();
+  reminders.schedule();
+}
+
+async function deleteTask(id) {
+  const task = state.tasks.find(x => x.id === id);
+  if (!task) return;
+  const order = orderedTasks().map(x => x.id);
+  const ok = await confirmBox({ title: 'delTitle', body: 'delBody', params: { title: task.title }, ok: 'delConfirm' });
+  if (!ok) { focusTask(id, 'delete'); return; }
+  const prev = standings(state.tasks);
+  state.tasks = state.tasks.filter(x => x.id !== id);
+  persist();
+  const next = standings(state.tasks);
+  onProgress(prev, next, 'delete', task);
+  renderAll();
+  reminders.schedule();
+  const idx = order.indexOf(id);
+  const neighbour = order[idx + 1] || order[idx - 1];
+  if (neighbour && state.tasks.some(x => x.id === neighbour)) focusTask(neighbour, 'toggle');
+  else $('taskTitle').focus();
+}
+
+async function newRace() {
+  const ok = await confirmBox({ title: 'newTitle', body: 'newBody', ok: 'newConfirm' });
+  if (!ok) return;
+  state.tasks = [];
+  state.pitLaps = [];
+  persist();
+  director.reset();
+  radio = [];
+  pushRadio('r_newRace');
+  renderAll();
+  reminders.schedule();
+  $('taskTitle').focus();
+}
+
+function setSound(on) {
+  state.sound = on;
+  persist();
+  audio.setEnabled(on);
+  renderControls();
+}
+function setMotion(on) {
+  state.motion = on;
+  persist();
+  director.setAnimated(on);
+  renderControls();
+  renderSceneLabel();
+}
+
+function setLanguage(lang) {
+  state.language = setLang(lang);
+  persist();
+  $('langSelect').value = state.language;
+  applyStatic();
+  renderAll();
+  renderRadio();
+  renderSubtitle();
+  renderConfirm();
+  renderNotif();
+  renderSceneLabel();
+  if (!director.animated) director.renderFrame(0);
+}
+
+// ---------- arranque ----------
+setLang(state.language);
+let director = null;
+buildTeamSelect();
+applyTeam();
+applyStatic();
+$('langSelect').value = state.language;
+audio.setEnabled(state.sound);
+
+const reminders = new Reminders({
+  getTasks: () => state.tasks,
+  onFire: (task, late) => {
+    audio.sfx('reminder');
+    pushRadio('r_reminder', { title: task.title });
+    if (document.visibilityState !== 'visible' || !document.hasFocus()) reminders.notify(t('notifTitle'), task.title);
+  },
+  onChange: () => { persist(); renderToasts(); renderList(); }
+});
+
+director = new Director($('scene'), {
+  getTeam: () => getTeam(state.team),
+  t,
+  getLang,
+  audio,
+  onState: s => { sceneState = s; renderSceneLabel(); renderControls(); },
+  onSubtitle: (role, key) => setSubtitle(role, key),
+  onEvent: name => {
+    const s = standings(state.tasks);
+    if (name === 'start') pushRadio('r_start', { pos: s.position });
+    if (name === 'pitDone') pushRadio('r_pitDone', { pos: s.position });
+  }
+});
+director.load(standings(state.tasks));
+director.setAnimated(motionOn());
+reduceMQ.addEventListener && reduceMQ.addEventListener('change', () => { if (state.motion === null) { director.setAnimated(motionOn()); renderControls(); renderSceneLabel(); } });
+
+pushRadio('r_welcome');
+if (state.tasks.length) {
+  const s = standings(state.tasks);
+  if (s.pending) pushRadio('r_pending', { n: s.pending });
+}
+renderAll();
+renderNotif();
+reminders.check();
+renderToasts();
+
+// ---------- eventos ----------
+$('taskForm').addEventListener('submit', e => {
+  e.preventDefault();
+  const input = $('taskTitle');
+  const title = input.value.trim();
+  if (!title) {
+    $('formError').textContent = t('fErrEmpty');
+    input.setAttribute('aria-invalid', 'true');
+    input.focus();
+    return;
+  }
+  $('formError').textContent = '';
+  input.removeAttribute('aria-invalid');
+  addTask(title, fromLocalInput($('taskDue').value), fromLocalInput($('taskAlarm').value));
+  input.value = '';
+  $('taskDue').value = '';
+  $('taskAlarm').value = '';
+  input.focus();
+});
+$('taskTitle').addEventListener('input', () => {
+  if ($('taskTitle').value.trim()) { $('formError').textContent = ''; $('taskTitle').removeAttribute('aria-invalid'); }
+});
+document.querySelectorAll('[data-clear]').forEach(b => b.addEventListener('click', () => { const i = $(b.dataset.clear); i.value = ''; i.focus(); }));
+
+$('taskList').addEventListener('click', e => {
+  const b = e.target.closest('[data-action]');
+  if (!b) return;
+  const id = b.closest('.task').dataset.id;
+  if (b.dataset.action === 'toggle') toggleTask(id);
+  else if (b.dataset.action === 'edit') openEdit(id);
+  else if (b.dataset.action === 'delete') deleteTask(id);
+});
+
+document.querySelectorAll('.filter').forEach(b => b.addEventListener('click', () => { filter = b.dataset.filter; renderList(); }));
+
+$('editForm').addEventListener('submit', e => {
+  e.preventDefault();
+  const task = state.tasks.find(x => x.id === editingId);
+  if (!task) { closeEdit(); return; }
+  const title = $('editTitle').value.trim();
+  if (!title) {
+    $('editError').textContent = t('fErrEmpty');
+    $('editTitle').setAttribute('aria-invalid', 'true');
+    $('editTitle').focus();
+    return;
+  }
+  const alarm = fromLocalInput($('editAlarm').value);
+  task.title = title;
+  task.due = fromLocalInput($('editDue').value);
+  if (alarm !== task.alarm) { task.alarm = alarm; task.fired = false; task.dismissed = false; task.late = false; }
+  persist();
+  const id = editingId;
+  closeEdit();
+  renderAll();
+  reminders.check();
+  focusTask(id, 'edit');
+});
+$('editCancel').addEventListener('click', () => { const id = editingId; closeEdit(); focusTask(id, 'edit'); });
+$('editDialog').addEventListener('close', () => { editingId = null; });
+$('editDialog').addEventListener('cancel', () => { const id = editingId; setTimeout(() => id && focusTask(id, 'edit'), 0); });
+
+$('garageBtn').addEventListener('click', () => {
+  const on = !director.browsing;
+  director.setBrowsing(on);
+  pushRadio(on ? 'r_garage' : 'r_track');
+  renderControls();
+});
+$('pitBtn').addEventListener('click', () => {
+  const s = standings(state.tasks);
+  if (!state.pitLaps.includes(s.done)) { state.pitLaps.push(s.done); persist(); }
+  director.enqueue({ type: 'pit' });
+  pushRadio('r_pit');
+  renderControls();
+});
+$('pauseBtn').addEventListener('click', () => setMotion(!motionOn()));
+$('motionToggle').addEventListener('change', e => setMotion(e.target.checked));
+$('soundBtn').addEventListener('click', () => setSound(!state.sound));
+$('soundToggle').addEventListener('change', e => setSound(e.target.checked));
+$('newRaceBtn').addEventListener('click', newRace);
+$('victoryNewRace').addEventListener('click', newRace);
+$('teamSelect').addEventListener('change', e => {
+  state.team = e.target.value;
+  persist();
+  applyTeam();
+  pushRadio('r_team', { team: getTeam(state.team).name });
+});
+$('langSelect').addEventListener('change', e => setLanguage(e.target.value));
+$('notifBtn').addEventListener('click', async () => { await reminders.requestPermission(); renderNotif(); });
+$('fab').addEventListener('click', () => {
+  $('taskForm').scrollIntoView({ behavior: motionOn() ? 'smooth' : 'auto', block: 'center' });
+  $('taskTitle').focus({ preventScroll: true });
+});
+
+// Refrescar estados "vencida" cada minuto.
+setInterval(() => { if (!document.hidden) renderList(); }, 60000);
+
+// Service Worker: notificaciones en Android y uso sin conexión.
+if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
+  navigator.serviceWorker.register('./sw.js').then(reg => { reminders.swReg = reg; }).catch(() => {});
+}
+
+window.__pitwallApp = { state, standings: () => standings(state.tasks), reminders };
