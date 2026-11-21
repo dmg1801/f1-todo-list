@@ -1,4 +1,4 @@
-/* F1 To-Do-List · estilo de retransmisión, oscuro y de alto contraste */
+/* Pitwall GP · estilo de retransmisión, oscuro y de alto contraste */
 :root {
   --bg: #0b0d12;
   --panel: #141821;
@@ -89,14 +89,14 @@ button, input, select { font: inherit; color: inherit; }
 .team-badge-name { font-weight: 800; overflow-wrap: anywhere; }
 
 .lang-picker { position: relative; display: flex; align-items: center; }
-.lang-icon { position: absolute; left: 10px; pointer-events: none; color: var(--muted); }
+.lang-flag { position: absolute; left: 10px; width: 24px; height: 16px; border-radius: 3px; object-fit: cover; pointer-events: none; box-shadow: 0 0 0 1px rgba(255,255,255,.35); }
 select {
   min-height: var(--tap); padding: 8px 34px 8px 12px;
   background: var(--panel-2) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='%23b3bccb' d='M7 10l5 5 5-5z'/%3E%3C/svg%3E") no-repeat right 8px center / 20px;
   border: 1px solid var(--line); border-radius: 10px;
   appearance: none; -webkit-appearance: none; max-width: 100%;
 }
-.lang-picker select { padding-left: 36px; }
+.lang-picker select { padding-left: 42px; }
 
 /* ---------- maquetación ---------- */
 .layout {
@@ -104,27 +104,26 @@ select {
   padding: 16px clamp(12px, 3vw, 28px) 110px;
   max-width: 1400px; margin: 0 auto;
   grid-template-columns: minmax(0, 1fr);
-  grid-template-areas: "race" "plan" "radio" "settings";
+  grid-template-areas: "race" "side" "radio" "settings";
 }
 .race-block { grid-area: race; }
-.plan-block { grid-area: plan; }
+.side-col { grid-area: side; display: grid; gap: 18px; align-content: start; min-width: 0; }
 .radio-block { grid-area: radio; }
 .settings-block { grid-area: settings; }
 @media (min-width: 900px) {
   .layout {
     grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
-    grid-template-areas: "race plan" "radio plan" "settings plan";
+    grid-template-areas: "race side" "radio side" "settings side";
     grid-template-rows: auto auto 1fr;
     align-items: start;
   }
-  .plan-block { position: sticky; top: 84px; max-height: calc(100vh - 100px); overflow: auto; }
 }
 
 section > h2, .plan-block h2 {
   font-size: .95rem; text-transform: uppercase; letter-spacing: .1em; color: var(--muted);
   margin-bottom: 10px; display: flex; align-items: center; gap: 8px;
 }
-.plan-block, .radio-block, .settings-block {
+.plan-block, .radio-block, .settings-block, .pomo-block {
   background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px;
 }
 .plan-block:focus { outline: none; }
@@ -210,6 +209,38 @@ section > h2, .plan-block h2 {
 .team-swatch { height: 6px; border-radius: 3px; }
 .team-option:hover { border-color: var(--team-ui); }
 .team-option[aria-pressed="true"] { border-color: var(--team-ui); box-shadow: inset 0 0 0 2px var(--team-ui); background: color-mix(in srgb, var(--team-ui) 14%, var(--panel-2)); }
+
+/* ---------- pomodoro ---------- */
+.pomo-block { --pomo: var(--accent); }
+.pomo-block[data-phase="short"], .pomo-block[data-phase="long"] { --pomo: var(--ok); }
+.pomo-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 12px; margin-bottom: 8px; }
+.pomo-head h2 { margin: 0; }
+.pomo-today { margin: 0; color: var(--muted); font-weight: 700; font-size: .9rem; }
+.pomo-main { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 14px; align-items: center; }
+.pomo-ring { position: relative; width: clamp(130px, 34vw, 170px); aspect-ratio: 1; }
+.pomo-ring svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+.ring-bg { fill: none; stroke: var(--panel-2); stroke-width: 10; }
+.ring-fg { fill: none; stroke: var(--pomo); stroke-width: 10; stroke-linecap: round; stroke-dasharray: 326.73; stroke-dashoffset: 0; transition: stroke-dashoffset .4s linear; }
+.pomo-readout { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 18px; }
+.pomo-time { font-size: clamp(1.7rem, 7vw, 2.3rem); font-weight: 900; font-variant-numeric: tabular-nums; letter-spacing: .02em; }
+.pomo-phase { font-size: .8rem; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; color: var(--pomo); overflow-wrap: anywhere; }
+.pomo-side { display: grid; gap: 10px; min-width: 0; }
+.pomo-dots { list-style: none; margin: 0; padding: 0; display: flex; gap: 8px; }
+.pomo-dots li { width: 18px; height: 18px; border-radius: 50%; border: 2px solid var(--muted); }
+.pomo-dots li.on { background: #e8433a; border-color: #e8433a; }
+.pomo-dots li.now { border-color: var(--pomo); box-shadow: 0 0 0 3px color-mix(in srgb, var(--pomo) 35%, transparent); }
+.pomo-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.pomo-actions .btn { flex: 1 1 130px; }
+.pomo-note { margin: 4px 0 0; color: var(--muted); font-size: .88rem; }
+.pomo-help summary { cursor: pointer; min-height: var(--tap); display: flex; align-items: center; font-weight: 700; color: var(--muted); }
+.pomo-help ol { margin: 0; padding-left: 1.3em; color: var(--muted); }
+.pomo-help li { margin: 2px 0; }
+.meta-item.pomos { color: #ff8a80; }
+@media (max-width: 420px) {
+  .pomo-main { grid-template-columns: minmax(0, 1fr); justify-items: center; }
+  .pomo-side { width: 100%; }
+  .pomo-dots { justify-content: center; }
+}
 
 /* ---------- formulario ---------- */
 .task-form { display: grid; gap: 8px; margin-bottom: 14px; }
@@ -347,6 +378,7 @@ input::placeholder { color: #8892a3; }
 
 /* ---------- pantallas estrechas ---------- */
 @media (max-width: 520px) {
+  .topbar { position: static; }
   .brand-tag { display: none; }
   .brand-name { font-size: 1.05rem; }
   .team-badge { order: 3; flex: 1 1 100%; }

@@ -1,10 +1,11 @@
-// F1 To-Do-List: arranque, interfaz y lógica de tareas.
+// Pitwall GP: arranque, interfaz y lógica de tareas.
 import { t, setLang, getLang, applyStatic, fmtDateTime } from './i18n.js';
 import { load, save, standings, newId } from './store.js';
 import { TEAMS, getTeam, emblemPath, inkFor } from './teams.js';
 import { audio } from './audio.js';
 import { Reminders } from './reminders.js';
 import { Director } from './scene/director.js';
+import { Pomodoro, fmtClock } from './pomodoro.js';
 
 TEAMS.forEach(tm => { tm.ink = inkFor(tm.ui); });
 
@@ -29,6 +30,7 @@ const ICON = {
   warn: '<svg aria-hidden="true" viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M1 21 12 2l11 19H1Zm12-3v-2h-2v2h2Zm0-4V9h-2v5h2Z"/></svg>',
   done: '<svg aria-hidden="true" viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm-1.5 14.5L6 12l1.4-1.4 3.1 3.1 6.1-6.1L18 9l-7.5 7.5Z"/></svg>',
   flag: '<svg aria-hidden="true" viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M5 21V3h2v1h12l-2 4 2 4H7v9H5Z"/></svg>',
+  tomato: '<svg aria-hidden="true" viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M12 7c5 0 9 3.2 9 7.5S17 22 12 22s-9-3.2-9-7.5S7 7 12 7Zm0-3.5L13.4 6l2.9-.6-1.4 2.6L12 9.5 9.1 8 7.7 5.4l2.9.6Z"/></svg>',
   bell: '<svg aria-hidden="true" viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M12 22a2.5 2.5 0 0 0 2.5-2.5h-5A2.5 2.5 0 0 0 12 22Zm7-6V11a7 7 0 0 0-5.5-6.8V3h-3v1.2A7 7 0 0 0 5 11v5l-2 2v1h18v-1l-2-2Z"/></svg>'
 };
 
@@ -241,6 +243,12 @@ function renderList() {
       al.appendChild(el('span', '', t('alarmLabel', { date: fmtDateTime(task.alarm) }) + (task.fired ? ` · ${t('alarmFired')}` : '')));
       meta.appendChild(al);
     }
+    if (task.pomodoros > 0) {
+      const pm = el('span', 'meta-item pomos');
+      pm.innerHTML = ICON.tomato;
+      pm.appendChild(el('span', '', t('pomoCount', { n: task.pomodoros })));
+      meta.appendChild(pm);
+    }
     body.appendChild(meta);
 
     const actions = el('div', 'task-actions');
@@ -399,6 +407,7 @@ function onProgress(prev, next, cause, task) {
 function renderAll() {
   renderStats();
   renderList();
+  if (pomodoro) renderPomodoro();
   renderControls();
   renderToasts();
 }
@@ -481,6 +490,7 @@ function setLanguage(lang) {
   state.language = setLang(lang);
   persist();
   $('langSelect').value = state.language;
+  $('langFlag').src = `./assets/flags/${state.language}.svg`;
   applyStatic();
   renderAll();
   renderRadio();
@@ -498,7 +508,10 @@ buildTeamGrid();
 applyTeam();
 applyStatic();
 $('langSelect').value = state.language;
+$('langFlag').src = `./assets/flags/${state.language}.svg`;
+audio.chimesOn = state.pomodoro.sound;
 audio.setEnabled(state.sound);
+let pomodoro = null;
 
 const reminders = new Reminders({
   getTasks: () => state.tasks,
@@ -536,6 +549,126 @@ renderAll();
 renderNotif();
 reminders.check();
 renderToasts();
+
+// ---------- pomodoro ----------
+const RING = 2 * Math.PI * 52;
+let nextChimeAt = 0;
+function playChime(name) {
+  const wait = Math.max(0, nextChimeAt - Date.now());
+  nextChimeAt = Date.now() + wait + 1600;
+  setTimeout(() => audio.chime(name), wait);
+}
+function pomoAnnounce(key, params) {
+  pushRadio(key, params);
+  $('pomoLive').textContent = t(key, params);
+  if (document.visibilityState !== 'visible' || !document.hasFocus()) reminders.notify(`${t('pomoTitle')} · Pitwall GP`, t(key, params));
+}
+
+pomodoro = new Pomodoro(state.pomodoro, {
+  onEvent: evt => {
+    const d = state.pomodoro;
+    if (evt.type === 'start' && evt.phase === 'work') {
+      const task = state.tasks.find(x => x.id === d.taskId);
+      if (!evt.silent) playChime('workStart');
+      pomoAnnounce(task ? 'r_pomoWorkTask' : 'r_pomoWork', task ? { title: task.title } : {});
+    } else if (evt.type === 'end' && evt.phase === 'work') {
+      const task = state.tasks.find(x => x.id === d.taskId);
+      if (task) task.pomodoros = (task.pomodoros || 0) + 1;
+      if (!evt.silent) playChime('workEnd');
+      pomoAnnounce('r_pomoDone', { n: d.today });
+      renderList();
+    } else if (evt.type === 'start') {
+      if (!evt.silent) playChime('breakStart');
+      pomoAnnounce(evt.phase === 'long' ? 'r_pomoLong' : 'r_pomoShort');
+    } else if (evt.type === 'end') {
+      if (!evt.silent) playChime('breakEnd');
+      pomoAnnounce('r_pomoBreakEnd');
+    } else if (evt.type === 'abandon') {
+      pomoAnnounce('r_pomoAbandon');
+    }
+  },
+  onChange: () => { persist(); renderPomodoro(); }
+});
+
+function renderPomoTasks() {
+  const sel = $('pomoTask');
+  const cur = state.pomodoro.taskId;
+  const list = state.tasks.filter(x => !x.done || x.id === cur);
+  sel.textContent = '';
+  const none = document.createElement('option');
+  none.value = ''; none.textContent = t('pomoNoTask');
+  sel.appendChild(none);
+  for (const task of list) {
+    const o = document.createElement('option');
+    o.value = task.id; o.textContent = task.title;
+    sel.appendChild(o);
+  }
+  sel.value = list.some(x => x.id === cur) ? cur : '';
+}
+
+function renderPomoTime() {
+  const d = state.pomodoro;
+  const rem = pomodoro.remaining();
+  const time = fmtClock(rem);
+  $('pomoTime').textContent = time;
+  $('pomoTime').setAttribute('aria-label', t('pomoTimeAria', { time }));
+  $('pomoRing').style.strokeDashoffset = String(RING * (1 - rem / pomodoro.total()));
+  if (d.phase !== 'idle') document.title = `${d.paused ? '⏸' : '▶'} ${time} · ${t('pomo_' + d.phase)} · Pitwall GP`;
+  else document.title = t('docTitle');
+}
+
+function renderPomodoro() {
+  const d = state.pomodoro;
+  pomodoro.rollDay(Date.now());
+  $('pomo').dataset.phase = d.phase;
+  $('pomoPhase').textContent = t('pomo_' + d.phase) + (d.paused ? ` · ${t('pomoPaused')}` : '');
+  $('pomoToday').textContent = t('pomoToday', { n: d.today });
+  const dots = $('pomoDots');
+  dots.setAttribute('aria-label', t('pomoDots', { n: d.cycle }));
+  [...dots.children].forEach((li, i) => {
+    li.classList.toggle('on', i < d.cycle);
+    li.classList.toggle('now', d.phase === 'work' && i === d.cycle);
+  });
+  const main = $('pomoMain');
+  main.textContent = d.phase === 'idle' ? t('pomoStart') : d.paused ? t('pomoResume') : t('pomoPause');
+  const skip = $('pomoSkip');
+  skip.hidden = d.phase === 'idle';
+  skip.textContent = d.phase === 'work' ? t('pomoAbandon') : t('pomoSkipBreak');
+  $('pomoReset').disabled = d.phase === 'idle' && d.cycle === 0;
+  $('pomoSound').checked = d.sound;
+  $('pomoAuto').checked = d.auto;
+  renderPomoTasks();
+  renderPomoTime();
+}
+
+pomodoro.tick(Date.now(), true); // fases que terminaron con la app cerrada, sin sonido
+pomodoro.arm();
+renderPomodoro();
+setInterval(() => { pomodoro.tick(); if (!document.hidden) renderPomoTime(); }, 500);
+document.addEventListener('visibilitychange', () => { pomodoro.tick(); renderPomoTime(); });
+
+$('pomoMain').addEventListener('click', () => {
+  const d = state.pomodoro;
+  audio.unlock();
+  if (d.phase === 'idle') pomodoro.start();
+  else if (d.paused) pomodoro.resume();
+  else pomodoro.pause();
+});
+$('pomoSkip').addEventListener('click', async () => {
+  if (state.pomodoro.phase === 'work') {
+    const ok = await confirmBox({ title: 'abandonTitle', body: 'abandonBody', ok: 'abandonConfirm' });
+    if (ok) pomodoro.abandon();
+    $('pomoMain').focus();
+  } else pomodoro.skipBreak();
+});
+$('pomoReset').addEventListener('click', async () => {
+  const ok = state.pomodoro.phase === 'idle' ? true : await confirmBox({ title: 'resetTitle', body: 'resetBody', ok: 'resetConfirm' });
+  if (ok) pomodoro.reset();
+  $('pomoMain').focus();
+});
+$('pomoTask').addEventListener('change', e => { state.pomodoro.taskId = e.target.value || null; persist(); });
+$('pomoSound').addEventListener('change', e => { state.pomodoro.sound = e.target.checked; audio.chimesOn = e.target.checked; if (e.target.checked) audio.unlock(); persist(); });
+$('pomoAuto').addEventListener('change', e => { state.pomodoro.auto = e.target.checked; persist(); });
 
 // ---------- eventos ----------
 $('taskForm').addEventListener('submit', e => {
@@ -639,4 +772,4 @@ if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
   navigator.serviceWorker.register('./sw.js').then(reg => { reminders.swReg = reg; }).catch(() => {});
 }
 
-window.__pitwallApp = { state, standings: () => standings(state.tasks), reminders };
+window.__pitwallApp = { state, standings: () => standings(state.tasks), reminders, pomodoro, audio };

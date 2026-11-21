@@ -1,6 +1,6 @@
-# F1 To-Do-List
+# Pitwall GP
 
-Lista de tareas gamificada como una carrera de monoplazas. Cada tarea es una vuelta: al completarla, tu coche adelanta a un rival, la radio del equipo lo celebra y, a mitad de carrera, entras en boxes. Funciona en móvil y escritorio, en español, inglés, alemán y turco.
+Lista de tareas gamificada como una carrera de monoplazas. Cada tarea es una vuelta: al completarla, tu coche adelanta a un rival, la radio del equipo lo celebra y, a mitad de carrera, entras en boxes. Incluye un temporizador **Pomodoro**. Funciona en móvil y escritorio, en español, inglés, alemán y turco.
 
 Es una app **estática** (HTML, CSS y JavaScript sin dependencias). No necesita servidor propio, base de datos, claves ni `npm install`.
 
@@ -24,7 +24,7 @@ Abrir `index.html` con doble clic (`file://`) no funciona: los navegadores bloqu
 1. Crea un repositorio en GitHub (por ejemplo `pitwall-gp`).
 2. Sube el **contenido** de la carpeta extraída a la raíz de la rama `main`: `index.html`, `.nojekyll`, `css/`, `js/`, `assets/`, etc. `index.html` debe quedar en la raíz del repositorio, no dentro de una subcarpeta.
    - Desde la web: *Add file → Upload files* y arrastra todo el contenido. El archivo `.nojekyll` está oculto en algunos sistemas; si no lo ves, créalo vacío desde GitHub (*Add file → Create new file*).
-   - Con git: `git init`, `git add .`, `git commit -m "F1 To-Do-List"`, `git branch -M main`, `git remote add origin …`, `git push -u origin main`.
+   - Con git: `git init`, `git add .`, `git commit -m "Pitwall GP"`, `git branch -M main`, `git remote add origin …`, `git push -u origin main`.
 3. En el repositorio: *Settings → Pages → Build and deployment → Source: Deploy from a branch*. Elige la rama `main` y la carpeta `/ (root)`, y guarda.
 4. Tras uno o dos minutos la app estará en `https://USUARIO.github.io/REPOSITORIO/`.
 
@@ -41,6 +41,20 @@ GitHub Pages solo sirve archivos: no hay ningún servidor que envíe avisos.
 - Se guarda qué avisos se mostraron y cuáles descartaste, así que no se repiten. Completar o eliminar una tarea quita su aviso; si cambias la hora, se vuelve a programar.
 - Las notificaciones del sistema son opcionales (Ajustes → *Activar notificaciones*). Si el navegador las bloquea o no las admite, los avisos siguen apareciendo dentro de la app. En Android se envían a través del pequeño Service Worker (`sw.js`).
 
+## Pomodoro
+
+El panel Pomodoro sigue la técnica clásica:
+
+1. Elige una tarea del plan (opcional) en *Tarea en foco*.
+2. **Concentración** de 25 minutos.
+3. **Descanso corto** de 5 minutos, que empieza solo al terminar el pomodoro.
+4. Cada 4 pomodoros, **descanso largo** de 15 minutos. Los puntos indican cuántos llevas de la serie.
+5. Un pomodoro **abandonado no cuenta** (la app lo confirma antes).
+
+Suena un aviso distinto al **empezar** y al **terminar** la concentración, y al **empezar** y al **terminar** el descanso. Estos sonidos tienen su propio interruptor (*Sonidos del pomodoro*, activado por defecto) y no dependen del sonido de la carrera. Por la política de audio de los navegadores, el primer sonido necesita que hayas pulsado algo en la página; pulsar *Empezar pomodoro* ya cuenta.
+
+Al acabar el descanso, por defecto esperas a pulsar *Empezar pomodoro*. Si prefieres encadenar, activa *Empezar el siguiente pomodoro automáticamente*. Cada pomodoro completado suma a la tarea en foco (se ve en su tarjeta) y al contador de hoy. El temporizador se basa en la hora de fin, así que sigue siendo exacto si recargas la página. Si cierras la app, al volver se cuentan las fases que terminaron (sin sonido, porque la app estaba cerrada). Si tienes las notificaciones activadas y la app está en segundo plano, también recibes una notificación.
+
 ## Estructura
 
 | Ruta | Tipo | Contenido |
@@ -52,6 +66,7 @@ GitHub Pages solo sirve archivos: no hay ningún servidor que envíe avisos.
 | `js/store.js` | Fuente | Persistencia (`pitwall-gp-v1`) y clasificación |
 | `js/teams.js` | Fuente | Escuderías, libreas y acentos de interfaz |
 | `js/reminders.js` | Fuente | Recordatorios y notificaciones |
+| `js/pomodoro.js` | Fuente | Temporizador Pomodoro (25/5/15) |
 | `js/audio.js` | Fuente | Efectos (Web Audio) y voz (speechSynthesis) |
 | `js/scene/director.js` | Fuente | Estados de escena y cola de animaciones |
 | `js/scene/track.js` | Fuente | Pista pseudo-3D y adelantamientos |
@@ -59,6 +74,7 @@ GitHub Pages solo sirve archivos: no hay ningún servidor que envíe avisos.
 | `js/scene/art.js` | Fuente | Dibujo del coche, personas y bandera |
 | `sw.js`, `manifest.webmanifest` | Fuente | Notificaciones en Android, uso sin conexión e instalación |
 | `assets/teams/*.svg` | Recursos | Un emblema por escudería |
+| `assets/flags/*.svg` | Recursos | Banderas del selector de idioma |
 | `assets/icons/` | Recursos | Iconos de la app |
 | `README.md` | Documentación | Este archivo |
 | `.nojekyll` | Configuración | Evita el procesado Jekyll de GitHub Pages |
@@ -71,8 +87,10 @@ Clave `pitwall-gp-v1` en `localStorage`:
 {
   "tasks": [{ "id": "…", "title": "…", "due": 1767225600000, "alarm": null,
               "done": false, "fired": false, "dismissed": false,
-              "late": false, "created": 1767139200000, "completedAt": null }],
-  "team": "ferrari", "sound": false, "motion": null, "language": "es", "pitLaps": []
+              "late": false, "created": 1767139200000, "completedAt": null, "pomodoros": 0 }],
+  "team": "ferrari", "sound": false, "motion": null, "language": "es", "pitLaps": [],
+  "pomodoro": { "phase": "idle", "endsAt": null, "remaining": null, "paused": false,
+                "cycle": 0, "day": "2026-11-21", "today": 0, "taskId": null, "auto": false, "sound": true }
 }
 ```
 
@@ -87,22 +105,23 @@ Todos los textos están en `js/i18n.js`, en un objeto por idioma (`es`, `en`, `d
 - Si falta una clave en un idioma, se usa la española.
 - Los textos fijos del HTML llevan `data-i18n="clave"`; las etiquetas accesibles, `data-i18n-aria`.
 
-Para añadir un idioma, copia el bloque `es`, tradúcelo, regístralo en `LANGS` y en `CATALOG`, y añade su `<option>` en `index.html`.
+Para añadir un idioma, copia el bloque `es`, tradúcelo, regístralo en `LANGS` y en `CATALOG`, añade su `<option>` en `index.html` y pon su bandera en `assets/flags/<código>.svg`.
 
 ## Reemplazar los emblemas
 
 Cada escudería usa `assets/teams/<id>.svg` (por ejemplo `assets/teams/apex-gp.svg`). Para cambiar uno, sustituye el archivo por otro **con el mismo nombre**, preferiblemente SVG cuadrado (`viewBox="0 0 64 64"`) para que se vea nítido a 40 px. Si quieres usar PNG, cambia la extensión en el campo `emblem` de `js/teams.js`.
 
-Los emblemas incluidos son **diseños originales de F1 To-Do-List**, distintos de los logotipos de las marcas. Solo sustituyas un archivo por un escudo oficial si tienes permiso para redistribuirlo en este proyecto, y documenta aquí su origen y licencia.
+Los emblemas incluidos son **diseños originales de Pitwall GP**, distintos de los logotipos de las marcas. Solo sustituyas un archivo por un escudo oficial si tienes permiso para redistribuirlo en este proyecto, y documenta aquí su origen y licencia.
 
 ### Origen y licencia de los recursos
 
 | Recurso | Origen | Licencia |
 |---|---|---|
-| `assets/teams/*.svg` | Diseños originales creados para F1 To-Do-List | Distribuidos con el proyecto |
-| `assets/icons/*` | Diseño original creado para F1 To-Do-List | Distribuidos con el proyecto |
+| `assets/teams/*.svg` | Diseños originales creados para Pitwall GP | Distribuidos con el proyecto |
+| `assets/icons/*` | Diseño original creado para Pitwall GP | Distribuidos con el proyecto |
+| `assets/flags/*.svg` | Dibujadas para Pitwall GP a partir de los diseños de las banderas nacionales | Las banderas nacionales son de dominio público |
 
-El proyecto no incluye recursos de terceros ni carga nada desde webs externas. Los nombres de escudería se usan solo como etiquetas del selector. F1 To-Do-List no tiene relación con esas marcas.
+El proyecto no incluye recursos de terceros ni carga nada desde webs externas. Los nombres de escudería se usan solo como etiquetas del selector. Pitwall GP no tiene relación con esas marcas.
 
 ## Accesibilidad y rendimiento
 

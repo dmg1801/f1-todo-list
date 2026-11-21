@@ -1,6 +1,6 @@
 {
-  "name": "F1 To-Do-List",
-  "short_name": "F1 To-Do-List",
+  "name": "Pitwall GP",
+  "short_name": "Pitwall GP",
   "description": "Lista de tareas gamificada como una carrera de monoplazas.",
   "start_url": "./",
   "scope": "./",

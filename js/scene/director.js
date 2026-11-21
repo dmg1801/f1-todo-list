@@ -109,13 +109,14 @@ export class Director {
     if (ev.type === 'overtake' && last && last.type === 'overtake') { last.laps += ev.laps; last.backmarker = last.backmarker && ev.backmarker; }
     else if (ev.type === 'pit' && (this.queue.some(e => e.type === 'pit') || (this.current && this.current.type === 'pit'))) return;
     else this.queue.push(ev);
-    if (!this.animated) this.flush();
+    if (!this.animated) { this.flush(); this.renderFrame(0); }
     this.emitState();
   }
 
   // Quitar victoria si se añaden o reabren tareas tras ganar.
   unwin() {
     this.queue = this.queue.filter(e => e.type !== 'victory');
+    if (this.current && this.current.type === 'victory') this.current = null;
     if (this.race === 'won') { this.race = 'running'; this.track.setVictory(false); this.track.resetRivals(this.want()); }
     this.emitState(); this.renderFrame(0);
   }

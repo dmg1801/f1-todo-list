@@ -1,8 +1,9 @@
 // Persistencia en localStorage con el esquema pitwall-gp-v1.
 // { tasks:[{id,title,due,alarm,done,fired,dismissed,late,created,completedAt}],
-//   team, sound, motion, language, pitLaps:[] }
+//   team, sound, motion, language, pitLaps:[], pomodoro:{...} }
 import { DEFAULT_TEAM, TEAMS } from './teams.js';
 import { LANGS, DEFAULT_LANG } from './i18n.js';
+import { normalizePomodoro } from './pomodoro.js';
 
 export const STORAGE_KEY = 'pitwall-gp-v1';
 
@@ -32,7 +33,8 @@ function normalizeTask(raw) {
     dismissed: !!raw.dismissed,
     late: !!raw.late,
     created: toTs(raw.created) ?? Date.now(),
-    completedAt: toTs(raw.completedAt)
+    completedAt: toTs(raw.completedAt),
+    pomodoros: Number.isInteger(raw.pomodoros) && raw.pomodoros > 0 ? raw.pomodoros : 0
   };
 }
 
@@ -52,7 +54,8 @@ export function load() {
     sound: data.sound === true,
     motion: typeof data.motion === 'boolean' ? data.motion : null, // null = seguir prefers-reduced-motion
     language: LANGS[data.language] ? data.language : DEFAULT_LANG,
-    pitLaps: Array.isArray(data.pitLaps) ? data.pitLaps.filter(n => Number.isInteger(n)) : []
+    pitLaps: Array.isArray(data.pitLaps) ? data.pitLaps.filter(n => Number.isInteger(n)) : [],
+    pomodoro: normalizePomodoro(data.pomodoro)
   };
 }
 
@@ -63,7 +66,8 @@ export function save(state) {
     sound: state.sound,
     motion: state.motion,
     language: state.language,
-    pitLaps: state.pitLaps
+    pitLaps: state.pitLaps,
+    pomodoro: state.pomodoro
   };
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); return true; }
   catch (e) { return false; }

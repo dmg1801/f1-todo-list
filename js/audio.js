@@ -10,12 +10,13 @@ class AudioEngine {
     this.engine = null;
     this.unlocked = false;
     this.lastSpeak = 0;
+    this.chimesOn = false; // sonidos del pomodoro (independientes del sonido general)
     const unlock = () => this.unlock();
     ['pointerdown', 'keydown', 'touchstart'].forEach(ev => window.addEventListener(ev, unlock, { passive: true }));
   }
 
   unlock() {
-    if (!this.enabled) return;
+    if (!this.enabled && !this.chimesOn) return;
     const AC = window.AudioContext || window.webkitAudioContext;
     if (!AC) return;
     try {
@@ -40,6 +41,28 @@ class AudioEngine {
   }
 
   ready() { return this.enabled && this.ctx && this.ctx.state === 'running'; }
+
+  // Avisos del pomodoro: suenan aunque los efectos de carrera estén apagados.
+  chime(name) {
+    if (!this.chimesOn) return;
+    const prev = this.enabled; this.enabled = true; this.unlock(); this.enabled = prev;
+    if (!this.ctx || this.ctx.state !== 'running') return;
+    const now = this.ctx.currentTime;
+    try {
+      if (name === 'workStart') {
+        [523, 659, 784, 1047].forEach((f, i) => this.tone(f, now + i * 0.13, 0.35, 'triangle', 0.28));
+      } else if (name === 'workEnd') {
+        for (let i = 0; i < 3; i++) {
+          this.tone(1318, now + i * 0.42, 0.9, 'sine', 0.32);
+          this.tone(2637, now + i * 0.42, 0.25, 'sine', 0.08);
+        }
+      } else if (name === 'breakStart') {
+        [784, 659, 523].forEach((f, i) => this.tone(f, now + i * 0.22, 0.7, 'sine', 0.26));
+      } else if (name === 'breakEnd') {
+        [880, 1175, 880, 1175].forEach((f, i) => this.tone(f, now + i * 0.16, 0.22, 'triangle', 0.26));
+      }
+    } catch (e) { /* ignorar */ }
+  }
 
   // Motor continuo: dos osciladores con filtro paso bajo.
   engineUpdate(level, rpm) {

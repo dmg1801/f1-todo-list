@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>F1 To-Do-List · Agenda de carrera</title>
-  <meta name="description" content="F1 To-Do-List: lista de tareas gamificada como una carrera de monoplazas.">
+  <title>Pitwall GP · Agenda de carrera</title>
+  <meta name="description" content="Pitwall GP: lista de tareas gamificada como una carrera de monoplazas.">
   <meta name="theme-color" content="#0d0f14">
   <link rel="manifest" href="./manifest.webmanifest">
   <link rel="icon" href="./assets/icons/icon.svg" type="image/svg+xml">
@@ -19,7 +19,7 @@
     <div class="brand">
       <span class="brand-flag" aria-hidden="true"></span>
       <span class="brand-text">
-        <span class="brand-name">F1 To-Do-List</span>
+        <span class="brand-name">Pitwall GP</span>
         <span class="brand-tag" data-i18n="tagline">Agenda de carrera</span>
       </span>
     </div>
@@ -34,7 +34,7 @@
     </button>
     <div class="lang-picker">
       <label for="langSelect" class="visually-hidden" data-i18n="language">Idioma</label>
-      <svg class="lang-icon" aria-hidden="true" viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm6.9 6h-3a15.7 15.7 0 0 0-1.4-3.6A8 8 0 0 1 18.9 8ZM12 4c.8 1.2 1.5 2.5 1.9 4h-3.8c.4-1.5 1.1-2.8 1.9-4ZM4.3 14a8.2 8.2 0 0 1 0-4h3.4a16.5 16.5 0 0 0 0 4H4.3Zm.8 2h3a15.7 15.7 0 0 0 1.4 3.6A8 8 0 0 1 5.1 16Zm3-8h-3a8 8 0 0 1 4.4-3.6C8.8 5.5 8.4 6.7 8.1 8ZM12 20c-.8-1.2-1.5-2.5-1.9-4h3.8c-.4 1.5-1.1 2.8-1.9 4Zm2.3-6H9.7a14.7 14.7 0 0 1 0-4h4.6a14.7 14.7 0 0 1 0 4Zm.2 5.6c.6-1.1 1.1-2.3 1.4-3.6h3a8 8 0 0 1-4.4 3.6Zm1.8-5.6a16.5 16.5 0 0 0 0-4h3.4a8.2 8.2 0 0 1 0 4h-3.4Z"/></svg>
+      <img class="lang-flag" id="langFlag" src="./assets/flags/es.svg" alt="" width="24" height="16">
       <select id="langSelect">
         <option value="es" lang="es">Español</option>
         <option value="en" lang="en">English</option>
@@ -92,6 +92,51 @@
       </div>
     </section>
 
+    <div class="side-col">
+    <section class="pomo-block" id="pomo" aria-labelledby="pomoTitle">
+      <div class="pomo-head">
+        <h2 id="pomoTitle"><svg class="tomato" aria-hidden="true" viewBox="0 0 24 24" width="22" height="22"><path fill="#e8433a" d="M12 7c5 0 9 3.2 9 7.5S17 22 12 22s-9-3.2-9-7.5S7 7 12 7Z"/><path fill="#3ddc84" d="M12 3.5 13.4 6l2.9-.6-1.4 2.6 2.6 1.2-3.2.6L12 11l-2.3-1.2-3.2-.6L9.1 8 7.7 5.4l2.9.6Z"/></svg><span data-i18n="pomoTitle">Pomodoro</span></h2>
+        <p class="pomo-today" id="pomoToday"></p>
+      </div>
+      <div class="pomo-main">
+        <div class="pomo-ring" id="pomoRingBox">
+          <svg viewBox="0 0 120 120" aria-hidden="true"><circle class="ring-bg" cx="60" cy="60" r="52"/><circle class="ring-fg" id="pomoRing" cx="60" cy="60" r="52"/></svg>
+          <div class="pomo-readout">
+            <span class="pomo-time" id="pomoTime" role="timer">25:00</span>
+            <span class="pomo-phase" id="pomoPhase"></span>
+          </div>
+        </div>
+        <div class="pomo-side">
+          <ol class="pomo-dots" id="pomoDots"><li></li><li></li><li></li><li></li></ol>
+          <div class="field">
+            <label for="pomoTask" data-i18n="pomoTask">Tarea en foco</label>
+            <select id="pomoTask"></select>
+          </div>
+          <div class="pomo-actions">
+            <button type="button" class="btn btn-accent" id="pomoMain"></button>
+            <button type="button" class="btn" id="pomoSkip"></button>
+            <button type="button" class="btn btn-ghost" id="pomoReset" data-i18n="pomoReset">Reiniciar serie</button>
+          </div>
+        </div>
+      </div>
+      <div class="switch-row">
+        <input type="checkbox" id="pomoSound" class="switch">
+        <label for="pomoSound" data-i18n="pomoSound">Sonidos del pomodoro</label>
+      </div>
+      <div class="switch-row">
+        <input type="checkbox" id="pomoAuto" class="switch">
+        <label for="pomoAuto" data-i18n="pomoAuto">Empezar el siguiente pomodoro automáticamente</label>
+      </div>
+      <p class="pomo-note" data-i18n="pomoSoundNote"></p>
+      <details class="pomo-help">
+        <summary data-i18n="pomoHelpTitle">Cómo funciona la técnica</summary>
+        <ol>
+          <li data-i18n="pomoHelp1"></li><li data-i18n="pomoHelp2"></li><li data-i18n="pomoHelp3"></li><li data-i18n="pomoHelp4"></li><li data-i18n="pomoHelp5"></li>
+        </ol>
+      </details>
+      <p class="visually-hidden" id="pomoLive" aria-live="polite"></p>
+    </section>
+
     <section class="plan-block" id="plan" aria-labelledby="planTitle" tabindex="-1">
       <h2 id="planTitle" data-i18n="planTitle">Plan de carrera</h2>
       <form id="taskForm" class="task-form" novalidate>
@@ -136,6 +181,8 @@
       <ul class="task-list" id="taskList"></ul>
       <p class="empty-state" id="emptyState" hidden></p>
     </section>
+
+    </div>
 
     <section class="radio-block" aria-labelledby="radioTitle">
       <h2 id="radioTitle"><span class="radio-dot" aria-hidden="true"></span><span data-i18n="radioTitle">Radio de equipo</span></h2>
@@ -220,6 +267,6 @@
     </form>
   </dialog>
 
-  <noscript><p class="noscript">F1 To-Do-List necesita JavaScript.</p></noscript>
+  <noscript><p class="noscript">Pitwall GP necesita JavaScript.</p></noscript>
 </body>
 </html>
