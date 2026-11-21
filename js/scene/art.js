@@ -30,13 +30,13 @@ export function drawCarRear(ctx, cx, by, w, angle, L, o = {}) {
   // sombra sin rotar
   ctx.fillStyle = 'rgba(0,0,0,0.45)';
   ctx.beginPath(); ctx.ellipse(0, -w * 0.01, w * 0.56, w * 0.07, 0, 0, Math.PI * 2); ctx.fill();
-  ctx.rotate(angle);
   ctx.scale(w, w);
+  const steer = Math.max(-0.05, Math.min(0.05, angle * 0.18)); // giro de dirección, sin inclinar el coche
   const dark = '#111214';
   // ruedas delanteras (más lejos)
   ctx.fillStyle = '#151515';
-  rr(ctx, -0.45, -0.37, 0.13, 0.19, 0.03); ctx.fill();
-  rr(ctx, 0.32, -0.37, 0.13, 0.19, 0.03); ctx.fill();
+  rr(ctx, -0.45 + steer, -0.37, 0.13, 0.19, 0.03); ctx.fill();
+  rr(ctx, 0.32 + steer, -0.37, 0.13, 0.19, 0.03); ctx.fill();
   // pontones
   ctx.fillStyle = shade(L.body, -0.18);
   poly(ctx, [[-0.37, -0.1], [-0.34, -0.3], [-0.14, -0.37], [0.14, -0.37], [0.34, -0.3], [0.37, -0.1]]); ctx.fill();

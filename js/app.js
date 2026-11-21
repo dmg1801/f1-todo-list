@@ -1,4 +1,4 @@
-// Pitwall GP: arranque, interfaz y lógica de tareas.
+// F1 To-Do-List: arranque, interfaz y lógica de tareas.
 import { t, setLang, getLang, applyStatic, fmtDateTime } from './i18n.js';
 import { load, save, standings, newId } from './store.js';
 import { TEAMS, getTeam, emblemPath, inkFor } from './teams.js';
@@ -57,19 +57,43 @@ function applyTeam() {
   r.setProperty('--livery-trim', team.livery.trim);
   $('teamEmblem').src = emblemPath(team);
   $('teamName').textContent = team.name;
-  $('teamSelect').value = team.id;
+  document.querySelectorAll('.team-option').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.team === team.id)));
   document.querySelector('meta[name="theme-color"]').setAttribute('content', '#0d0f14');
   if (director && !director.animated) director.renderFrame(0);
 }
 
-function buildTeamSelect() {
-  const sel = $('teamSelect');
-  sel.textContent = '';
+function buildTeamGrid() {
+  const ul = $('teamGrid');
+  ul.textContent = '';
   for (const tm of TEAMS) {
-    const o = document.createElement('option');
-    o.value = tm.id; o.textContent = tm.name;
-    sel.appendChild(o);
+    const li = document.createElement('li');
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'team-option';
+    b.dataset.team = tm.id;
+    b.style.setProperty('--team-ui', tm.ui);
+    const img = document.createElement('img');
+    img.src = emblemPath(tm); img.alt = ''; img.width = 40; img.height = 40;
+    const sw = document.createElement('span');
+    sw.className = 'team-swatch'; sw.setAttribute('aria-hidden', 'true');
+    sw.style.background = `linear-gradient(90deg, ${tm.livery.body} 0 50%, ${tm.livery.second} 50% 75%, ${tm.livery.trim} 75%)`;
+    const name = document.createElement('span');
+    name.className = 'team-option-name'; name.textContent = tm.name;
+    b.append(img, name, sw);
+    b.addEventListener('click', () => chooseTeam(tm.id));
+    li.appendChild(b);
+    ul.appendChild(li);
   }
+}
+
+function chooseTeam(id) {
+  const changed = id !== state.team;
+  state.team = id;
+  persist();
+  applyTeam();
+  if (changed) pushRadio('r_team', { team: getTeam(id).name });
+  $('teamDialog').close();
+  $('teamBadge').focus();
 }
 
 // ---------- radio ----------
@@ -470,7 +494,7 @@ function setLanguage(lang) {
 // ---------- arranque ----------
 setLang(state.language);
 let director = null;
-buildTeamSelect();
+buildTeamGrid();
 applyTeam();
 applyStatic();
 $('langSelect').value = state.language;
@@ -593,12 +617,13 @@ $('soundBtn').addEventListener('click', () => setSound(!state.sound));
 $('soundToggle').addEventListener('change', e => setSound(e.target.checked));
 $('newRaceBtn').addEventListener('click', newRace);
 $('victoryNewRace').addEventListener('click', newRace);
-$('teamSelect').addEventListener('change', e => {
-  state.team = e.target.value;
-  persist();
-  applyTeam();
-  pushRadio('r_team', { team: getTeam(state.team).name });
+$('teamBadge').addEventListener('click', () => {
+  $('teamDialog').showModal();
+  const cur = document.querySelector('.team-option[aria-pressed="true"]');
+  if (cur) cur.focus();
 });
+$('teamDialogClose').addEventListener('click', () => { $('teamDialog').close(); $('teamBadge').focus(); });
+$('teamDialog').addEventListener('click', e => { if (e.target === $('teamDialog')) { $('teamDialog').close(); $('teamBadge').focus(); } });
 $('langSelect').addEventListener('change', e => setLanguage(e.target.value));
 $('notifBtn').addEventListener('click', async () => { await reminders.requestPermission(); renderNotif(); });
 $('fab').addEventListener('click', () => {
