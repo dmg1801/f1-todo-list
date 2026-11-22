@@ -90,7 +90,7 @@ Al acabar el descanso, por defecto esperas a pulsar *Empezar pomodoro*. Si prefi
 | `js/circuits.js` | Fuente | Circuitos: trazado, colores y calendario |
 | `js/emblem.js` | Fuente | Generador de escudos de la escudería propia |
 | `js/scene/backdrops.js` | Fuente | Paisajes de cada circuito |
-| `js/audio.js` | Fuente | Efectos (Web Audio) y voz (speechSynthesis) |
+| `js/audio.js` | Fuente | Efectos, música y voz (speechSynthesis) |
 | `js/scene/director.js` | Fuente | Estados de escena y cola de animaciones |
 | `js/scene/track.js` | Fuente | Pista pseudo-3D y adelantamientos |
 | `js/scene/garage.js` | Fuente | Garaje, montaje y parada en boxes |
@@ -98,7 +98,9 @@ Al acabar el descanso, por defecto esperas a pulsar *Empezar pomodoro*. Si prefi
 | `sw.js`, `manifest.webmanifest` | Fuente | Notificaciones en Android, uso sin conexión e instalación |
 | `assets/teams/*.svg` | Recursos | Un emblema por escudería |
 | `assets/flags/*.svg` | Recursos | Banderas del selector de idioma |
-| `assets/f1-to-do-list.mp3` | Recursos | Música al añadir una tarea (con el sonido activado) |
+| `assets/f1-cars-racing.mp3` | Recursos | Música en bucle mientras se muestra la carrera (con el sonido activado) |
+| `assets/f1-radio-sound.mp3` | Recursos | Aviso al recibir un mensaje de radio (con el sonido activado) |
+| `assets/f1-to-do-list.mp3` | Recursos | Música ambiental tenue al añadir una tarea (con el sonido activado) |
 | `assets/icons/` | Recursos | Iconos de la app |
 | `README.md` | Documentación | Este archivo |
 | `.nojekyll` | Configuración | Evita el procesado Jekyll de GitHub Pages |

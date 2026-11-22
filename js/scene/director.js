@@ -149,7 +149,7 @@ export class Director {
     if (!on) {
       this.flush();
       this.fade = null;
-      this.deps.audio.engineOff();
+      this.deps.audio.setRaceMusic(false);
       this.renderFrame(0);
     } else {
       this.start();
@@ -280,10 +280,9 @@ export class Director {
     this.garage.speed = 1 + Math.min(1.5, this.queue.length * 0.5);
     if (this.view === 'track') this.track.update(dt);
     else this.garage.update(dt);
-    // motor
+    // Música de carrera
     const a = this.deps.audio;
-    if (this.view === 'track' && this.race !== 'empty') a.engineUpdate(this.race === 'won' ? 0.6 : 1, this.track.speed / this.track.cruise);
-    else a.engineOff();
+    a.setRaceMusic(this.view === 'track' && this.race !== 'empty');
     this.emitState();
     if (this.visible && !document.hidden) this.renderFrame(dt);
   }

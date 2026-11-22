@@ -282,6 +282,7 @@ function pushRadio(key, params = {}) {
   radio.unshift({ key, params, at: Date.now() });
   radio = radio.slice(0, 8);
   renderRadio();
+  audio.playRadioSound();
 }
 const timeFmt = () => new Intl.DateTimeFormat(document.documentElement.lang, { hour: '2-digit', minute: '2-digit' });
 function renderRadio() {

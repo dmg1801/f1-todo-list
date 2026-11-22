@@ -7,11 +7,14 @@ class AudioEngine {
     this.enabled = false;
     this.ctx = null;
     this.master = null;
-    this.engine = null;
     this.unlocked = false;
     this.lastSpeak = 0;
     this.chimesOn = false; // sonidos del pomodoro (independientes del sonido general)
     this.lapMusic = null;
+    this.raceMusic = null;
+    this.radioSound = null;
+    this.raceMusicWanted = false;
+    this.raceMusicBlocked = false;
     const unlock = () => this.unlock();
     ['pointerdown', 'keydown', 'touchstart'].forEach(ev => window.addEventListener(ev, unlock, { passive: true }));
   }
@@ -20,6 +23,7 @@ class AudioEngine {
     if (!this.enabled) return;
     if (!this.lapMusic) {
       this.lapMusic = new Audio(new URL('../assets/f1-to-do-list.mp3', import.meta.url));
+      this.lapMusic.volume = 0.12;
     }
     if (!this.lapMusic.paused && !this.lapMusic.ended) return;
     this.lapMusic.currentTime = 0;
@@ -35,28 +39,84 @@ class AudioEngine {
     this.lapMusic.currentTime = 0;
   }
 
+  playRadioSound() {
+    if (!this.enabled) return;
+    if (!this.radioSound) {
+      this.radioSound = new Audio(new URL('../assets/f1-radio-sound.mp3', import.meta.url));
+    }
+    this.radioSound.currentTime = 0;
+    const playback = this.radioSound.play();
+    if (playback && typeof playback.catch === 'function') {
+      playback.catch(error => console.error('No se pudo reproducir el sonido de radio.', error));
+    }
+  }
+
+  setRaceMusic(on) {
+    this.raceMusicWanted = !!on;
+    if (!this.enabled || !this.raceMusicWanted) {
+      this.pauseRaceMusic();
+      return;
+    }
+    this.syncRaceMusic();
+  }
+
+  pauseRaceMusic() {
+    if (!this.raceMusic) return;
+    this.raceMusic.pause();
+    this.raceMusic.currentTime = 0;
+  }
+
+  syncRaceMusic() {
+    if (!this.enabled || !this.raceMusicWanted || this.raceMusicBlocked) return;
+    if (!this.raceMusic) {
+      this.raceMusic = new Audio(new URL('../assets/f1-cars-racing.mp3', import.meta.url));
+      this.raceMusic.loop = true;
+      this.raceMusic.volume = 0.65;
+    }
+    if (!this.raceMusic.paused && !this.raceMusic.ended) return;
+    const playback = this.raceMusic.play();
+    if (playback && typeof playback.catch === 'function') {
+      playback.catch(error => {
+        this.raceMusicBlocked = true;
+        console.error('No se pudo reproducir la música de carrera.', error);
+      });
+    }
+  }
+
   unlock() {
     if (!this.enabled && !this.chimesOn) return;
     const AC = window.AudioContext || window.webkitAudioContext;
-    if (!AC) return;
-    try {
-      if (!this.ctx) {
-        this.ctx = new AC();
-        this.master = this.ctx.createGain();
-        this.master.gain.value = 0.6;
-        this.master.connect(this.ctx.destination);
-      }
-      if (this.ctx.state === 'suspended') this.ctx.resume();
-      this.unlocked = true;
-    } catch (e) { /* sin audio */ }
+    if (AC) {
+      try {
+        if (!this.ctx) {
+          this.ctx = new AC();
+          this.master = this.ctx.createGain();
+          this.master.gain.value = 0.6;
+          this.master.connect(this.ctx.destination);
+        }
+        if (this.ctx.state === 'suspended') this.ctx.resume();
+        this.unlocked = true;
+      } catch (e) { /* sin audio */ }
+    }
+    if (this.enabled) {
+      this.raceMusicBlocked = false;
+      this.syncRaceMusic();
+    }
   }
 
   setEnabled(on) {
     this.enabled = !!on;
-    if (this.enabled) this.unlock();
+    if (this.enabled) {
+      this.unlock();
+      this.syncRaceMusic();
+    }
     else {
-      this.engineOff();
       this.stopLapMusic();
+      this.pauseRaceMusic();
+      if (this.radioSound) {
+        this.radioSound.pause();
+        this.radioSound.currentTime = 0;
+      }
       if ('speechSynthesis' in window) try { speechSynthesis.cancel(); } catch (e) {}
     }
   }
@@ -83,34 +143,6 @@ class AudioEngine {
         [880, 1175, 880, 1175].forEach((f, i) => this.tone(f, now + i * 0.16, 0.22, 'triangle', 0.26));
       }
     } catch (e) { /* ignorar */ }
-  }
-
-  // Motor continuo: dos osciladores con filtro paso bajo.
-  engineUpdate(level, rpm) {
-    if (!this.ready()) return;
-    const c = this.ctx;
-    if (!this.engine) {
-      const o1 = c.createOscillator(), o2 = c.createOscillator();
-      const f = c.createBiquadFilter(), g = c.createGain();
-      o1.type = 'sawtooth'; o2.type = 'square';
-      f.type = 'lowpass'; f.frequency.value = 700;
-      g.gain.value = 0;
-      o1.connect(f); o2.connect(f); f.connect(g); g.connect(this.master);
-      o1.start(); o2.start();
-      this.engine = { o1, o2, f, g };
-    }
-    const e = this.engine, now = c.currentTime;
-    const freq = 55 + rpm * 120;
-    e.o1.frequency.setTargetAtTime(freq, now, 0.08);
-    e.o2.frequency.setTargetAtTime(freq * 0.501, now, 0.08);
-    e.f.frequency.setTargetAtTime(400 + rpm * 1400, now, 0.1);
-    e.g.gain.setTargetAtTime(0.045 * level, now, 0.15);
-  }
-
-  engineOff() {
-    if (this.engine && this.ctx) {
-      this.engine.g.gain.setTargetAtTime(0, this.ctx.currentTime, 0.1);
-    }
   }
 
   noise(dur) {
