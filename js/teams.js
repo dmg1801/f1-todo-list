@@ -22,6 +22,7 @@ export function getTeam(id) {
 }
 
 export function emblemPath(team) {
+  if (team.emblemURL) return team.emblemURL;
   return `./assets/teams/${team.emblem}`;
 }
 
@@ -34,4 +35,37 @@ export function inkFor(hex) {
   });
   const L = 0.2126 * ch[0] + 0.7152 * ch[1] + 0.0722 * ch[2];
   return L > 0.22 ? '#0b0c10' : '#ffffff';
+}
+
+// ---------- escudería propia ----------
+function contrastOnDark(hex) {
+  const n = parseInt(hex.slice(1), 16);
+  const lum = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map(v => {
+    v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+  });
+  const L = 0.2126 * lum[0] + 0.7152 * lum[1] + 0.0722 * lum[2];
+  return (L + 0.05) / (0.0046 + 0.05); // fondo #0b0d12
+}
+function lighten(hex, k) {
+  const n = parseInt(hex.slice(1), 16);
+  const c = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map(v => Math.round(v + (255 - v) * k));
+  return '#' + c.map(v => v.toString(16).padStart(2, '0')).join('');
+}
+// Acento de interfaz legible sobre el fondo oscuro, a partir de los colores elegidos.
+export function readableAccent(colors) {
+  const ok = colors.find(c => contrastOnDark(c) >= 4.5);
+  if (ok) return ok;
+  let c = colors[0];
+  for (let k = 0.1; k <= 1 && contrastOnDark(c) < 4.5; k += 0.1) c = lighten(colors[0], k);
+  return c;
+}
+
+export function customTeamObject(ct, emblemURL) {
+  const ui = readableAccent([ct.body, ct.trim, ct.second]);
+  const ui2 = readableAccent([ct.trim, ct.second, ct.body]);
+  return {
+    id: 'custom', name: ct.name, custom: true, emblemURL,
+    livery: { body: ct.body, second: ct.second, trim: ct.trim },
+    ui, ui2, ink: inkFor(ui)
+  };
 }

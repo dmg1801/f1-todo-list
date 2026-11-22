@@ -2,6 +2,8 @@
 // Una única geometría (centerX acumulado por curvatura) sirve para proyectar
 // el asfalto y para colocar y orientar los coches.
 import { drawCarRear, drawCheckered } from './art.js';
+import { getCircuit } from '../circuits.js';
+import { drawBackdrop } from './backdrops.js';
 
 const SEG = 200;        // longitud de segmento (mundo)
 const ROAD = 2000;      // semiancho de la calzada
@@ -11,26 +13,24 @@ const NEAR = 60;
 export const LANE = 0.45;
 const GAP_K = [1.2, 2.5, 4.0]; // huecos en múltiplos de la distancia cámara-coche
 
-function buildCourse() {
-  // [segmentos, curvatura]; + derecha, − izquierda
-  const plan = [[50, 0], [60, 4.4], [28, 0], [70, -5], [24, 0], [46, 3.4], [46, -3.8], [40, 0], [70, 5.2], [30, 0], [62, -4.6], [40, 0]];
-  const c = [];
-  for (const [n, k] of plan) {
+function buildCourse(plan) {
+  const curves = [], tunnel = [];
+  for (const [n, k, flag] of plan) {
     for (let i = 0; i < n; i++) {
       const e = Math.max(0, Math.min(1, i / 12, (n - 1 - i) / 12));
-      c.push(k * e);
+      curves.push(k * e);
+      tunnel.push(flag === 'T' ? 1 : 0);
     }
   }
-  return c;
+  return { curves, tunnel };
 }
 
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 
 export class Track {
   constructor() {
-    this.curves = buildCourse();
-    this.N = this.curves.length;
     this.pos = 0;
+    this.setCircuit(getCircuit('monaco'));
     this.speed = 5600;
     this.cruise = 5600;
     this.heading = 0;
@@ -55,6 +55,16 @@ export class Track {
   gap(k) { return this.PZ * (k < GAP_K.length ? GAP_K[k] : GAP_K[GAP_K.length - 1] + (k - 2) * 1.2); }
 
   curve(i) { return this.curves[((i % this.N) + this.N) % this.N]; }
+  isTunnel(i) { return this.tunnel[((i % this.N) + this.N) % this.N] === 1; }
+
+  setCircuit(c) {
+    this.circuit = c;
+    this.theme = c.theme;
+    const b = buildCourse(c.plan);
+    this.curves = b.curves; this.tunnel = b.tunnel; this.N = b.curves.length;
+    this.pos = this.pos % (this.N * SEG);
+    this.heading = 0;
+  }
 
   busy() { return !!this.ot || !!(this.lights && !this.lights.go); }
 
@@ -221,39 +231,26 @@ export class Track {
     if (!env.dt) this.camX = camTarget;
     const proj = (z, wx) => { const s = f / z; return { X: w / 2 + (wx - this.camX) * s, Y: horizon + CAM_H * s, s }; };
 
-    // cielo
+    const th = this.theme;
+    // cielo y paisaje del circuito
     const sky = ctx.createLinearGradient(0, 0, 0, horizon);
-    sky.addColorStop(0, '#070b1d'); sky.addColorStop(0.6, '#2a2150'); sky.addColorStop(1, '#c4613f');
+    sky.addColorStop(0, th.sky[0]); sky.addColorStop(0.6, th.sky[1]); sky.addColorStop(1, th.sky[2]);
     ctx.fillStyle = sky; ctx.fillRect(0, 0, w, horizon + 2);
-    // colinas con paralaje
-    const hill = (amp, k, off, col) => {
-      ctx.fillStyle = col; ctx.beginPath(); ctx.moveTo(0, horizon + 1);
-      for (let px = 0; px <= w; px += 16) {
-        const u = px / w * k + off;
-        ctx.lineTo(px, horizon - amp * (0.6 + 0.4 * Math.sin(u) + 0.25 * Math.sin(u * 2.3 + 1)));
+    drawBackdrop(this.circuit.id, ctx, w, h, horizon, this.heading, this.time);
+    ctx.fillStyle = th.ground[0]; ctx.fillRect(0, horizon, w, h - horizon);
+    if (th.stands) {
+      const gh = Math.max(4, h * 0.028);
+      ctx.fillStyle = '#1b1e2a'; ctx.fillRect(0, horizon - gh, w, gh + 2);
+      const crowd = ['#e8e8e8', '#ff5a5f', '#ffd84a', '#4f95ff', env.accent];
+      for (let k = 0; k < 90; k++) {
+        const px = ((k * 23.7 - this.heading * 60 * w / 600) % w + w) % w;
+        ctx.fillStyle = crowd[k % crowd.length];
+        ctx.fillRect(px, horizon - gh + 1 + (k % 3) * gh * 0.28, 2, 2);
       }
-      ctx.lineTo(w, horizon + 1); ctx.closePath(); ctx.fill();
-    };
-    hill(h * 0.09, 5, -this.heading * 0.5, '#1c1736');
-    hill(h * 0.05, 9, -this.heading, '#120f22');
-    // fondo de hierba y tribuna en el horizonte
-    ctx.fillStyle = '#17502a'; ctx.fillRect(0, horizon, w, h - horizon);
-    const gh = Math.max(4, h * 0.028);
-    ctx.fillStyle = '#1b1e2a'; ctx.fillRect(0, horizon - gh, w, gh + 2);
-    const crowd = ['#e8e8e8', '#ff5a5f', '#ffd84a', '#4f95ff', env.accent];
-    for (let k = 0; k < 90; k++) {
-      const px = ((k * 23.7 - this.heading * 60 * w / 600) % w + w) % w;
-      ctx.fillStyle = crowd[k % crowd.length];
-      ctx.fillRect(px, horizon - gh + 1 + (k % 3) * gh * 0.28, 2, 2);
-    }
-    // luces de la ciudad
-    ctx.fillStyle = 'rgba(255,210,140,0.7)';
-    for (let k = 0; k < 26; k++) {
-      const px = ((k * 97.3 - this.heading * 40 * w / 600) % w + w) % w;
-      ctx.fillRect(px, horizon - 3 - (k % 4) * 2, 2, 2);
     }
 
-    // asfalto, pianos y hierba (de lejos a cerca)
+    // asfalto, pianos, muros, túneles y hierba (de lejos a cerca)
+    const WALL_H = 420, CEIL_H = 2300, WALL_X = 1.2, TUN_X = 1.26;
     const sprites = [];
     for (let i = count - 1; i >= 0; i--) {
       let z1 = zs[i], z2 = zs[i + 1], x1 = xs[i], x2 = xs[i + 1];
@@ -262,17 +259,21 @@ export class Track {
       const a = proj(z1, x1), b = proj(z2, x2);
       const idx = this.base + i;
       const alt = Math.floor(idx / 2) % 2;
-      const top = Math.max(b.Y, horizon);
-      ctx.fillStyle = alt ? '#17502a' : '#1b5a30';
-      ctx.fillRect(0, top, w, a.Y - top + 1);
-      const quad = (hw1, hw2, col, off1 = 0, off2 = 0) => {
-        ctx.fillStyle = col; ctx.beginPath();
-        ctx.moveTo(a.X - hw1 + off1, a.Y); ctx.lineTo(a.X + hw1 + off1, a.Y);
-        ctx.lineTo(b.X + hw2 + off2, b.Y); ctx.lineTo(b.X - hw2 + off2, b.Y); ctx.closePath(); ctx.fill();
-      };
+      const tun = this.isTunnel(idx);
       const hwA = ROAD * a.s, hwB = ROAD * b.s;
-      quad(hwA * 1.16, hwB * 1.16, alt ? '#d8222c' : '#f2f2f2');
-      quad(hwA, hwB, alt ? '#3a3d45' : '#363940');
+      const poly4 = (pts, col) => {
+        ctx.fillStyle = col; ctx.beginPath(); ctx.moveTo(pts[0], pts[1]);
+        for (let k = 2; k < pts.length; k += 2) ctx.lineTo(pts[k], pts[k + 1]);
+        ctx.closePath(); ctx.fill();
+      };
+      const quad = (hw1, hw2, col) => poly4([a.X - hw1, a.Y, a.X + hw1, a.Y, b.X + hw2, b.Y, b.X - hw2, b.Y], col);
+      if (!tun) {
+        const top = Math.max(b.Y, horizon);
+        ctx.fillStyle = th.ground[alt];
+        ctx.fillRect(0, top, w, a.Y - top + 1);
+      }
+      quad(hwA * 1.16, hwB * 1.16, th.kerb[alt]);
+      quad(hwA, hwB, tun ? (alt ? '#2a2c31' : '#27292e') : th.road[alt]);
       if (((idx % this.N) + this.N) % this.N === 8) {
         // línea de meta a cuadros
         const rows = 2, cols = 12;
@@ -294,8 +295,40 @@ export class Track {
         ctx.moveTo(a.X + hwA * 0.96, a.Y); ctx.lineTo(a.X + hwA * 0.96 - ew, a.Y); ctx.lineTo(b.X + hwB * 0.96 - ewb, b.Y); ctx.lineTo(b.X + hwB * 0.96, b.Y); ctx.closePath(); ctx.fill();
         if (alt) quad(hwA * 0.012, hwB * 0.012, 'rgba(255,255,255,0.6)');
       }
-      if (idx % 6 === 0 && zs[i] > NEAR) sprites.push({ kind: 'lamp', z: zs[i], side: (idx / 6) % 2 ? 1 : -1 });
-      if (idx % 45 === 0 && zs[i] > NEAR) sprites.push({ kind: 'board', z: zs[i], side: (idx / 45) % 2 ? -1 : 1 });
+      if (tun) {
+        // túnel: paredes, techo y luces
+        const cA = a.Y - CEIL_H * a.s, cB = b.Y - CEIL_H * b.s;
+        const lA = a.X - hwA * TUN_X, rA = a.X + hwA * TUN_X, lB = b.X - hwB * TUN_X, rB = b.X + hwB * TUN_X;
+        poly4([lA, a.Y, lB, b.Y, lB, cB, lA, cA], alt ? '#3a3c44' : '#35373f');
+        poly4([rA, a.Y, rB, b.Y, rB, cB, rA, cA], alt ? '#3a3c44' : '#35373f');
+        poly4([lA, cA, rA, cA, rB, cB, lB, cB], alt ? '#2a2b31' : '#26272c');
+        if (idx % 3 === 0) {
+          const lw = hwA * 0.25;
+          poly4([a.X - lw, cA, a.X + lw, cA, b.X + lw * 0.9, cB, b.X - lw * 0.9, cB], 'rgba(255,240,200,0.9)');
+        }
+        // fachada en la boca del túnel
+        if (!this.isTunnel(idx - 1)) {
+          const fTop = a.Y - CEIL_H * 1.9 * a.s;
+          ctx.fillStyle = '#4a4d55';
+          ctx.fillRect(0, fTop, Math.max(0, lA), a.Y - fTop);
+          ctx.fillRect(rA, fTop, Math.max(0, w - rA), a.Y - fTop);
+          ctx.fillRect(lA, fTop, rA - lA, cA - fTop);
+          ctx.fillStyle = th.walls ? th.walls.stripe : env.accent;
+          ctx.fillRect(lA, cA - 120 * a.s, rA - lA, 120 * a.s);
+        }
+      } else if (th.walls) {
+        // muros de un circuito urbano
+        const top = WALL_H;
+        const lA = a.X - hwA * WALL_X, lB = b.X - hwB * WALL_X, rA = a.X + hwA * WALL_X, rB = b.X + hwB * WALL_X;
+        const col = th.walls.color[alt];
+        poly4([lA, a.Y, lB, b.Y, lB, b.Y - top * b.s, lA, a.Y - top * a.s], col);
+        poly4([rA, a.Y, rB, b.Y, rB, b.Y - top * b.s, rA, a.Y - top * a.s], col);
+        const st = th.walls.stripe, sw = 70;
+        poly4([lA, a.Y - top * a.s, lB, b.Y - top * b.s, lB, b.Y - (top - sw) * b.s, lA, a.Y - (top - sw) * a.s], st);
+        poly4([rA, a.Y - top * a.s, rB, b.Y - top * b.s, rB, b.Y - (top - sw) * b.s, rA, a.Y - (top - sw) * a.s], st);
+      }
+      if (!tun && idx % 6 === 0 && zs[i] > NEAR) sprites.push({ kind: 'lamp', z: zs[i], side: (idx / 6) % 2 ? 1 : -1 });
+      if (!tun && idx % 45 === 0 && zs[i] > NEAR) sprites.push({ kind: 'board', z: zs[i], side: (idx / 45) % 2 ? -1 : 1 });
     }
 
     // coches
@@ -311,22 +344,25 @@ export class Track {
     const samples = [];
     for (const s of all) {
       if (s.kind === 'lamp' || s.kind === 'board') {
-        const q = proj(s.z, this.wx(s.z) + s.side * ROAD * 1.45);
+        const q = proj(s.z, this.wx(s.z) + s.side * ROAD * (th.walls ? 1.24 : 1.45));
         if (s.kind === 'lamp') {
           const hh = 2600 * q.s, pw = Math.max(1, 50 * q.s);
           ctx.fillStyle = '#555b66'; ctx.fillRect(q.X - pw / 2, q.Y - hh, pw, hh);
-          ctx.fillStyle = 'rgba(255,236,180,0.95)';
+          ctx.fillStyle = th.lamp;
           ctx.fillRect(q.X - pw * 3, q.Y - hh, pw * 6, Math.max(1, pw * 1.2));
-          ctx.fillStyle = 'rgba(255,230,160,0.12)';
-          ctx.beginPath(); ctx.arc(q.X, q.Y - hh, pw * 9, 0, Math.PI * 2); ctx.fill();
+          if (th.night) {
+            ctx.globalAlpha = 0.16; ctx.fillStyle = th.lamp;
+            ctx.beginPath(); ctx.arc(q.X, q.Y - hh, pw * 9, 0, Math.PI * 2); ctx.fill();
+            ctx.globalAlpha = 1;
+          }
         } else {
           const bw = 1500 * q.s, bh = 500 * q.s;
           if (bw > 6) {
             ctx.fillStyle = env.accent; ctx.fillRect(q.X - bw / 2, q.Y - bh - 300 * q.s, bw, bh);
             if (bw > 40) {
-              ctx.fillStyle = env.accentInk; ctx.font = `800 ${Math.round(bh * 0.4)}px system-ui, sans-serif`;
+              ctx.fillStyle = env.accentInk; ctx.font = `800 ${Math.round(bh * 0.32)}px system-ui, sans-serif`;
               ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-              ctx.fillText('PITWALL GP', q.X, q.Y - bh / 2 - 300 * q.s);
+              ctx.fillText('F1 TO-DO-LIST', q.X, q.Y - bh / 2 - 300 * q.s);
             }
           }
         }
@@ -357,6 +393,14 @@ export class Track {
     const lw = ctx.measureText(lap).width + 16;
     ctx.fillStyle = 'rgba(0,0,0,0.55)'; ctx.fillRect(w - 8 - lw, 8, lw, fs * 1.1);
     ctx.fillStyle = '#fff'; ctx.fillText(lap, w - 16, 8 + fs * 0.25);
+    if (env.circuitName) {
+      ctx.font = `700 ${Math.round(fs * 0.5)}px system-ui, sans-serif`;
+      const cn = env.circuitName.toUpperCase();
+      const cw = ctx.measureText(cn).width + 16;
+      ctx.fillStyle = 'rgba(0,0,0,0.55)'; ctx.fillRect(w - 8 - cw, 8 + fs * 1.2, cw, fs * 0.9);
+      ctx.fillStyle = env.accent; ctx.fillRect(w - 8 - cw, 8 + fs * 1.2, 3, fs * 0.9);
+      ctx.fillStyle = '#fff'; ctx.fillText(cn, w - 16, 8 + fs * 1.36);
+    }
 
     // semáforo de salida
     if (this.lights) {

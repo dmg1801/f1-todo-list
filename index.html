@@ -73,6 +73,10 @@
           <svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M3 10 12 4l9 6v10h-3v-8H6v8H3V10Zm5 4h8v2H8v-2Zm0 3h8v2H8v-2Z"/></svg>
           <span id="garageBtnText">Ver garaje</span>
         </button>
+        <button type="button" class="btn" id="circuitBtn" aria-haspopup="dialog" aria-controls="circuitDialog">
+          <svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M6 3a4 4 0 0 0-4 4v5a4 4 0 0 0 4 4h2a2 2 0 0 1 2 2 3 3 0 0 0 3 3h5a4 4 0 0 0 4-4v-2a4 4 0 0 0-4-4h-2a2 2 0 0 1-2-2V7a4 4 0 0 0-4-4H6Zm0 2h4a2 2 0 0 1 2 2v2a4 4 0 0 0 4 4h2a2 2 0 0 1 2 2v2a2 2 0 0 1-2 2h-5a1 1 0 0 1-1-1 4 4 0 0 0-4-4H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z"/></svg>
+          <span id="circuitBtnText">Circuito</span>
+        </button>
         <button type="button" class="btn" id="pitBtn">
           <svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm0 4a6 6 0 1 1 0 12 6 6 0 0 1 0-12Zm0 3a3 3 0 1 0 0 6 3 3 0 0 0 0-6Z"/></svg>
           <span data-i18n="btnPit">Parada en boxes</span>
@@ -236,6 +240,71 @@
       <button type="button" class="btn btn-icon btn-ghost" id="teamDialogClose" data-i18n-aria="close" aria-label="Cerrar">✕</button>
     </div>
     <ul class="team-grid" id="teamGrid"></ul>
+  </dialog>
+
+  <dialog id="circuitDialog" class="dialog dialog-circuits" aria-labelledby="circuitDialogTitle">
+    <div class="dialog-head">
+      <h2 id="circuitDialogTitle" data-i18n="circuitDialogTitle">Elige el circuito</h2>
+      <button type="button" class="btn btn-icon btn-ghost" id="circuitDialogClose" data-i18n-aria="close" aria-label="Cerrar">✕</button>
+    </div>
+    <p class="dialog-note" data-i18n="circuitCalendarNote"></p>
+    <ul class="circuit-grid" id="circuitGrid"></ul>
+  </dialog>
+
+  <dialog id="customDialog" class="dialog dialog-custom" aria-labelledby="customTitle">
+    <form id="customForm" novalidate>
+      <div class="dialog-head">
+        <h2 id="customTitle" data-i18n="ctTitle">Tu escudería</h2>
+        <button type="button" class="btn btn-icon btn-ghost" id="customClose" data-i18n-aria="close" aria-label="Cerrar">✕</button>
+      </div>
+      <div class="custom-grid">
+        <div class="custom-preview" id="ctPreviewBox" role="img">
+          <img id="ctEmblemPreview" src="./assets/icons/icon.svg" alt="" width="88" height="88">
+          <p class="custom-preview-name" id="ctNamePreview" aria-hidden="true"></p>
+          <canvas id="ctCarPreview" width="320" height="170" aria-hidden="true"></canvas>
+        </div>
+        <div class="custom-fields">
+          <div class="field">
+            <label for="ctName" data-i18n="ctName">Nombre de la escudería</label>
+            <input id="ctName" type="text" maxlength="24" autocomplete="off" data-i18n-ph="ctNamePh" aria-describedby="ctNameErr" required>
+            <p class="form-error" id="ctNameErr" aria-live="assertive"></p>
+          </div>
+          <fieldset class="ct-set">
+            <legend data-i18n="ctCar">Colores del coche</legend>
+            <div class="color-row">
+              <label class="color-field"><input type="color" id="ctBody"><span data-i18n="ctBody">Principal</span></label>
+              <label class="color-field"><input type="color" id="ctSecond"><span data-i18n="ctSecond">Secundario</span></label>
+              <label class="color-field"><input type="color" id="ctTrim"><span data-i18n="ctTrim">Detalles</span></label>
+            </div>
+            <button type="button" class="btn btn-ghost" id="ctRandom" data-i18n="ctRandom">Colores al azar</button>
+          </fieldset>
+          <fieldset class="ct-set">
+            <legend data-i18n="ctShape">Forma del escudo</legend>
+            <div class="choice-grid" id="ctShapes"></div>
+          </fieldset>
+          <fieldset class="ct-set">
+            <legend data-i18n="ctSymbol">Símbolo</legend>
+            <div class="choice-grid" id="ctSymbols"></div>
+          </fieldset>
+          <fieldset class="ct-set">
+            <legend data-i18n="ctBadge">Colores del escudo</legend>
+            <div class="color-row">
+              <label class="color-field"><input type="color" id="ctBadgeBg"><span data-i18n="ctBadgeBg">Fondo</span></label>
+              <label class="color-field"><input type="color" id="ctBadgeFg"><span data-i18n="ctBadgeFg">Símbolo y letras</span></label>
+              <label class="color-field"><input type="color" id="ctBadgeBorder"><span data-i18n="ctBadgeBorder">Borde</span></label>
+            </div>
+          </fieldset>
+          <div class="field">
+            <label for="ctInitials" data-i18n="ctInitials">Iniciales (hasta 3)</label>
+            <input id="ctInitials" type="text" maxlength="3" autocomplete="off" class="initials-input">
+          </div>
+        </div>
+      </div>
+      <div class="dialog-actions">
+        <button type="button" class="btn" id="ctCancel" data-i18n="cancel">Cancelar</button>
+        <button type="submit" class="btn btn-accent" data-i18n="ctSave">Guardar y correr</button>
+      </div>
+    </form>
   </dialog>
 
   <dialog id="editDialog" class="dialog" aria-labelledby="editHeading">

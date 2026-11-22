@@ -1,7 +1,11 @@
 // F1 To-Do-List: arranque, interfaz y lógica de tareas.
 import { t, setLang, getLang, applyStatic, fmtDateTime } from './i18n.js';
 import { load, save, standings, newId } from './store.js';
-import { TEAMS, getTeam, emblemPath, inkFor } from './teams.js';
+import { TEAMS, getTeam, emblemPath, inkFor, customTeamObject } from './teams.js';
+import { CIRCUITS, getCircuit, nextCircuit } from './circuits.js';
+import { drawThumb } from './scene/backdrops.js';
+import { SHAPES, SYMBOLS, emblemDataURL, shapeIcon, symbolIcon } from './emblem.js';
+import { drawCarSide, drawCarRear } from './scene/art.js';
 import { audio } from './audio.js';
 import { Reminders } from './reminders.js';
 import { Director } from './scene/director.js';
@@ -49,8 +53,20 @@ function fromLocalInput(v) {
 }
 
 // ---------- escudería ----------
+let customCache = { key: '', team: null };
+function customTeam() {
+  const ct = state.customTeam;
+  if (!ct) return null;
+  const key = JSON.stringify(ct);
+  if (customCache.key !== key) customCache = { key, team: customTeamObject(ct, emblemDataURL(ct.emblem)) };
+  return customCache.team;
+}
+function currentTeam() {
+  return state.team === 'custom' && state.customTeam ? customTeam() : getTeam(state.team);
+}
+
 function applyTeam() {
-  const team = getTeam(state.team);
+  const team = currentTeam();
   const r = document.documentElement.style;
   r.setProperty('--accent', team.ui);
   r.setProperty('--accent-2', team.ui2);
@@ -64,28 +80,62 @@ function applyTeam() {
   if (director && !director.animated) director.renderFrame(0);
 }
 
+function teamButton(tm) {
+  const b = document.createElement('button');
+  b.type = 'button';
+  b.className = 'team-option';
+  b.dataset.team = tm.id;
+  b.style.setProperty('--team-ui', tm.ui);
+  const img = document.createElement('img');
+  img.src = emblemPath(tm); img.alt = ''; img.width = 40; img.height = 40;
+  const sw = document.createElement('span');
+  sw.className = 'team-swatch'; sw.setAttribute('aria-hidden', 'true');
+  sw.style.background = `linear-gradient(90deg, ${tm.livery.body} 0 50%, ${tm.livery.second} 50% 75%, ${tm.livery.trim} 75%)`;
+  const name = document.createElement('span');
+  name.className = 'team-option-name'; name.textContent = tm.name;
+  b.append(img, name, sw);
+  b.addEventListener('click', () => chooseTeam(tm.id));
+  return b;
+}
+
 function buildTeamGrid() {
   const ul = $('teamGrid');
   ul.textContent = '';
-  for (const tm of TEAMS) {
-    const li = document.createElement('li');
-    const b = document.createElement('button');
-    b.type = 'button';
-    b.className = 'team-option';
-    b.dataset.team = tm.id;
-    b.style.setProperty('--team-ui', tm.ui);
-    const img = document.createElement('img');
-    img.src = emblemPath(tm); img.alt = ''; img.width = 40; img.height = 40;
-    const sw = document.createElement('span');
-    sw.className = 'team-swatch'; sw.setAttribute('aria-hidden', 'true');
-    sw.style.background = `linear-gradient(90deg, ${tm.livery.body} 0 50%, ${tm.livery.second} 50% 75%, ${tm.livery.trim} 75%)`;
-    const name = document.createElement('span');
-    name.className = 'team-option-name'; name.textContent = tm.name;
-    b.append(img, name, sw);
-    b.addEventListener('click', () => chooseTeam(tm.id));
-    li.appendChild(b);
-    ul.appendChild(li);
+  // escudería propia: siempre la primera
+  const li = document.createElement('li');
+  li.className = 'team-custom';
+  const mine = customTeam();
+  if (mine) {
+    const b = teamButton(mine);
+    const tag = document.createElement('span');
+    tag.className = 'team-tag'; tag.textContent = t('ctYours');
+    b.insertBefore(tag, b.querySelector('.team-option-name'));
+    const edit = document.createElement('button');
+    edit.type = 'button'; edit.className = 'btn btn-icon btn-ghost team-edit';
+    edit.setAttribute('aria-label', t('ctEdit'));
+    edit.innerHTML = ICON.edit;
+    edit.addEventListener('click', () => openCustomEditor());
+    li.append(b, edit);
+  } else {
+    const c = document.createElement('button');
+    c.type = 'button'; c.className = 'team-create';
+    c.innerHTML = '<span class="team-create-plus" aria-hidden="true">+</span>';
+    const tx = document.createElement('span');
+    tx.className = 'team-create-text';
+    const strong = document.createElement('strong'); strong.textContent = t('ctCreate');
+    const small = document.createElement('span'); small.textContent = t('ctCreateHint');
+    tx.append(strong, small);
+    c.appendChild(tx);
+    c.addEventListener('click', () => openCustomEditor());
+    li.appendChild(c);
   }
+  ul.appendChild(li);
+  for (const tm of TEAMS) {
+    const item = document.createElement('li');
+    item.appendChild(teamButton(tm));
+    ul.appendChild(item);
+  }
+  applyTeam();
 }
 
 function chooseTeam(id) {
@@ -93,9 +143,136 @@ function chooseTeam(id) {
   state.team = id;
   persist();
   applyTeam();
-  if (changed) pushRadio('r_team', { team: getTeam(id).name });
+  if (changed) pushRadio('r_team', { team: currentTeam().name });
   $('teamDialog').close();
   $('teamBadge').focus();
+}
+
+// ---------- editor de escudería propia ----------
+let draft = null;
+function hsl(h, s, l) {
+  const a = s * Math.min(l, 1 - l);
+  const f = n => { const k = (n + h / 30) % 12; const c = l - a * Math.max(-1, Math.min(k - 3, 9 - k, 1)); return Math.round(c * 255).toString(16).padStart(2, '0'); };
+  return `#${f(0)}${f(8)}${f(4)}`;
+}
+function randomPalette() {
+  const h = Math.random() * 360;
+  const body = hsl(h, 0.75, 0.45), second = hsl((h + 180 + Math.random() * 60 - 30) % 360, 0.6, 0.18), trim = hsl((h + 40 + Math.random() * 280) % 360, 0.9, 0.6);
+  return { body, second, trim };
+}
+function defaultDraft() {
+  const p = { body: '#1e6bff', second: '#0e1a33', trim: '#ffd23f' };
+  return { name: '', ...p, emblem: { shape: 'shield', symbol: 'bolt', bg: p.second, fg: p.trim, border: p.body, initials: '' } };
+}
+
+function buildChoices() {
+  const mk = (box, list, name, icon, labelKey) => {
+    box.textContent = '';
+    for (const v of list) {
+      const lab = document.createElement('label');
+      lab.className = 'choice';
+      const inp = document.createElement('input');
+      inp.type = 'radio'; inp.name = name; inp.value = v; inp.className = 'choice-input';
+      const boxEl = document.createElement('span');
+      boxEl.className = 'choice-box'; boxEl.innerHTML = icon(v);
+      const txt = document.createElement('span');
+      txt.className = 'visually-hidden'; txt.textContent = t(labelKey + v);
+      lab.title = t(labelKey + v);
+      lab.append(inp, boxEl, txt);
+      box.appendChild(lab);
+    }
+  };
+  mk($('ctShapes'), SHAPES, 'ctShape', shapeIcon, 'shape_');
+  mk($('ctSymbols'), SYMBOLS, 'ctSymbol', symbolIcon, 'sym_');
+}
+
+function fillEditor() {
+  const d = draft;
+  $('ctName').value = d.name;
+  $('ctBody').value = d.body; $('ctSecond').value = d.second; $('ctTrim').value = d.trim;
+  $('ctBadgeBg').value = d.emblem.bg; $('ctBadgeFg').value = d.emblem.fg; $('ctBadgeBorder').value = d.emblem.border;
+  $('ctInitials').value = d.emblem.initials;
+  document.querySelectorAll('input[name="ctShape"]').forEach(i => { i.checked = i.value === d.emblem.shape; });
+  document.querySelectorAll('input[name="ctSymbol"]').forEach(i => { i.checked = i.value === d.emblem.symbol; });
+  renderPreview();
+}
+
+function readEditor() {
+  const d = draft;
+  d.name = $('ctName').value;
+  d.body = $('ctBody').value; d.second = $('ctSecond').value; d.trim = $('ctTrim').value;
+  d.emblem.bg = $('ctBadgeBg').value; d.emblem.fg = $('ctBadgeFg').value; d.emblem.border = $('ctBadgeBorder').value;
+  d.emblem.initials = $('ctInitials').value.toUpperCase().slice(0, 3);
+  const sh = document.querySelector('input[name="ctShape"]:checked'); if (sh) d.emblem.shape = sh.value;
+  const sy = document.querySelector('input[name="ctSymbol"]:checked'); if (sy) d.emblem.symbol = sy.value;
+}
+
+function renderPreview() {
+  const d = draft;
+  const name = d.name.trim() || t('ctDefaultName');
+  $('ctEmblemPreview').src = emblemDataURL(d.emblem);
+  $('ctNamePreview').textContent = name;
+  $('ctPreviewBox').setAttribute('aria-label', t('ctPreviewAria', { name }));
+  const c = $('ctCarPreview'), ctx = c.getContext('2d');
+  const L = { body: d.body, second: d.second, trim: d.trim };
+  ctx.clearRect(0, 0, c.width, c.height);
+  drawCarSide(ctx, 112, 150, 200, L, { wheelF: 'new', wheelR: 'new', wing: 'new', driverIn: true, lift: 0 });
+  drawCarRear(ctx, 268, 150, 86, 0, L, {});
+}
+
+function openCustomEditor() {
+  draft = state.customTeam ? JSON.parse(JSON.stringify(state.customTeam)) : defaultDraft();
+  buildChoices();
+  fillEditor();
+  $('ctNameErr').textContent = '';
+  $('ctName').removeAttribute('aria-invalid');
+  if ($('teamDialog').open) $('teamDialog').close();
+  $('customDialog').showModal();
+  $('ctName').focus();
+}
+
+function closeCustomEditor(backToTeams = true) {
+  if ($('customDialog').open) $('customDialog').close();
+  if (backToTeams) { $('teamDialog').showModal(); const cur = document.querySelector('.team-custom button'); if (cur) cur.focus(); }
+  else $('teamBadge').focus();
+}
+
+// ---------- circuitos ----------
+function circuitName(id) { return t('ci_' + id); }
+
+function renderCircuitBtn() {
+  $('circuitBtnText').textContent = t('circuitBtn', { name: circuitName(state.circuit) });
+}
+
+function buildCircuitGrid() {
+  const ul = $('circuitGrid');
+  ul.textContent = '';
+  for (const c of CIRCUITS) {
+    const li = document.createElement('li');
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'circuit-option'; b.dataset.circuit = c.id;
+    b.setAttribute('aria-pressed', String(c.id === state.circuit));
+    const cv = document.createElement('canvas');
+    cv.width = 240; cv.height = 120; cv.className = 'circuit-thumb'; cv.setAttribute('aria-hidden', 'true');
+    drawThumb(cv.getContext('2d'), 240, 120, c);
+    const name = document.createElement('strong'); name.className = 'circuit-name'; name.textContent = circuitName(c.id);
+    const desc = document.createElement('span'); desc.className = 'circuit-desc'; desc.textContent = t('cd_' + c.id);
+    b.append(cv, name, desc);
+    b.addEventListener('click', () => chooseCircuit(c.id));
+    li.appendChild(b);
+    ul.appendChild(li);
+  }
+}
+
+function chooseCircuit(id) {
+  const changed = id !== state.circuit;
+  state.circuit = id;
+  persist();
+  director.setCircuit(getCircuit(id));
+  renderCircuitBtn();
+  if (changed) pushRadio('r_circuit', { name: circuitName(id) });
+  $('circuitDialog').close();
+  $('circuitBtn').focus();
 }
 
 // ---------- radio ----------
@@ -464,10 +641,14 @@ async function newRace() {
   if (!ok) return;
   state.tasks = [];
   state.pitLaps = [];
+  state.circuit = nextCircuit(state.circuit);
   persist();
   director.reset();
+  director.setCircuit(getCircuit(state.circuit));
+  renderCircuitBtn();
   radio = [];
   pushRadio('r_newRace');
+  pushRadio('r_nextRace', { name: circuitName(state.circuit) });
   renderAll();
   reminders.schedule();
   $('taskTitle').focus();
@@ -499,6 +680,10 @@ function setLanguage(lang) {
   renderConfirm();
   renderNotif();
   renderSceneLabel();
+  renderCircuitBtn();
+  buildTeamGrid();
+  if ($('circuitDialog').open) buildCircuitGrid();
+  if ($('customDialog').open) { readEditor(); buildChoices(); fillEditor(); }
   if (!director.animated) director.renderFrame(0);
 }
 
@@ -525,7 +710,8 @@ const reminders = new Reminders({
 });
 
 director = new Director($('scene'), {
-  getTeam: () => getTeam(state.team),
+  getTeam: () => currentTeam(),
+  getCircuitName: () => circuitName(state.circuit),
   t,
   getLang,
   audio,
@@ -537,7 +723,9 @@ director = new Director($('scene'), {
     if (name === 'pitDone') pushRadio('r_pitDone', { pos: s.position });
   }
 });
+director.setCircuit(getCircuit(state.circuit));
 director.load(standings(state.tasks));
+renderCircuitBtn();
 director.setAnimated(motionOn());
 reduceMQ.addEventListener && reduceMQ.addEventListener('change', () => { if (state.motion === null) { director.setAnimated(motionOn()); renderControls(); renderSceneLabel(); } });
 
@@ -759,6 +947,45 @@ $('teamBadge').addEventListener('click', () => {
 $('teamDialogClose').addEventListener('click', () => { $('teamDialog').close(); $('teamBadge').focus(); });
 $('teamDialog').addEventListener('click', e => { if (e.target === $('teamDialog')) { $('teamDialog').close(); $('teamBadge').focus(); } });
 $('langSelect').addEventListener('change', e => setLanguage(e.target.value));
+$('circuitBtn').addEventListener('click', () => {
+  buildCircuitGrid();
+  $('circuitDialog').showModal();
+  const cur = document.querySelector('.circuit-option[aria-pressed="true"]');
+  if (cur) cur.focus();
+});
+$('circuitDialogClose').addEventListener('click', () => { $('circuitDialog').close(); $('circuitBtn').focus(); });
+$('circuitDialog').addEventListener('click', e => { if (e.target === $('circuitDialog')) { $('circuitDialog').close(); $('circuitBtn').focus(); } });
+$('customForm').addEventListener('input', () => { readEditor(); renderPreview(); });
+$('customForm').addEventListener('change', () => { readEditor(); renderPreview(); });
+$('ctName').addEventListener('input', () => { if ($('ctName').value.trim()) { $('ctNameErr').textContent = ''; $('ctName').removeAttribute('aria-invalid'); } });
+$('ctRandom').addEventListener('click', () => {
+  readEditor();
+  const p = randomPalette();
+  Object.assign(draft, p);
+  Object.assign(draft.emblem, { bg: p.second, fg: p.trim, border: p.body });
+  fillEditor();
+});
+$('customForm').addEventListener('submit', e => {
+  e.preventDefault();
+  readEditor();
+  const name = draft.name.trim();
+  if (!name) {
+    $('ctNameErr').textContent = t('ctNameErr');
+    $('ctName').setAttribute('aria-invalid', 'true');
+    $('ctName').focus();
+    return;
+  }
+  draft.name = name.slice(0, 24);
+  state.customTeam = JSON.parse(JSON.stringify(draft));
+  state.team = 'custom';
+  persist();
+  buildTeamGrid();
+  pushRadio('r_customSaved', { team: draft.name });
+  closeCustomEditor(false);
+});
+$('ctCancel').addEventListener('click', () => closeCustomEditor(true));
+$('customDialog').addEventListener('cancel', e => { e.preventDefault(); closeCustomEditor(true); });
+$('customClose').addEventListener('click', () => closeCustomEditor(true));
 $('notifBtn').addEventListener('click', async () => { await reminders.requestPermission(); renderNotif(); });
 $('fab').addEventListener('click', () => {
   $('taskForm').scrollIntoView({ behavior: motionOn() ? 'smooth' : 'auto', block: 'center' });

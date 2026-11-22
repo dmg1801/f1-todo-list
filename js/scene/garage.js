@@ -86,7 +86,7 @@ export class Garage {
   carLen() { return Math.min(this.W * 0.6, this.H * 1.25); }
   geo() {
     const L = this.carLen() / this.W, x = this.car.x;
-    return { fx: x + 0.31 * L, rx: x - 0.33 * L, nx: x + 0.47 * L, cx: x - 0.02 * L };
+    return { fx: x + 0.3 * L, rx: x - 0.34 * L, nx: x + 0.48 * L, cx: x - 0.02 * L };
   }
 
   // ---------- primitivas de guion ----------
@@ -402,7 +402,7 @@ export class Garage {
     }
   }
 
-  geoAt(x) { const L = this.carLen() / this.W; return { fx: x + 0.31 * L, rx: x - 0.33 * L }; }
+  geoAt(x) { const L = this.carLen() / this.W; return { fx: x + 0.3 * L, rx: x - 0.34 * L }; }
 
   drawStack(ctx, x, floorY, n, old, label) {
     const tw = this.W * 0.075, th = this.H * 0.032;

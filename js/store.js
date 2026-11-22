@@ -4,6 +4,8 @@
 import { DEFAULT_TEAM, TEAMS } from './teams.js';
 import { LANGS, DEFAULT_LANG } from './i18n.js';
 import { normalizePomodoro } from './pomodoro.js';
+import { CIRCUITS, DEFAULT_CIRCUIT } from './circuits.js';
+import { SHAPES, SYMBOLS } from './emblem.js';
 
 export const STORAGE_KEY = 'pitwall-gp-v1';
 
@@ -38,6 +40,29 @@ function normalizeTask(raw) {
   };
 }
 
+const HEX = /^#[0-9a-f]{6}$/i;
+export function normalizeCustomTeam(c) {
+  if (!c || typeof c !== 'object') return null;
+  const name = typeof c.name === 'string' ? c.name.trim().slice(0, 24) : '';
+  if (!name) return null;
+  const col = (v, d) => (typeof v === 'string' && HEX.test(v) ? v.toLowerCase() : d);
+  const e = c.emblem && typeof c.emblem === 'object' ? c.emblem : {};
+  return {
+    name,
+    body: col(c.body, '#1e6bff'),
+    second: col(c.second, '#0e1a33'),
+    trim: col(c.trim, '#ffd23f'),
+    emblem: {
+      shape: SHAPES.includes(e.shape) ? e.shape : 'shield',
+      symbol: SYMBOLS.includes(e.symbol) ? e.symbol : 'bolt',
+      bg: col(e.bg, '#0e1a33'),
+      fg: col(e.fg, '#ffd23f'),
+      border: col(e.border, '#1e6bff'),
+      initials: typeof e.initials === 'string' ? e.initials.trim().toUpperCase().slice(0, 3) : ''
+    }
+  };
+}
+
 export function load() {
   let data = {};
   try {
@@ -50,7 +75,9 @@ export function load() {
     .filter(t => t && !ids.has(t.id) && ids.add(t.id));
   return {
     tasks,
-    team: TEAMS.some(t => t.id === data.team) ? data.team : DEFAULT_TEAM,
+    team: TEAMS.some(t => t.id === data.team) || (data.team === 'custom' && normalizeCustomTeam(data.customTeam)) ? data.team : DEFAULT_TEAM,
+    customTeam: normalizeCustomTeam(data.customTeam),
+    circuit: CIRCUITS.some(c => c.id === data.circuit) ? data.circuit : DEFAULT_CIRCUIT,
     sound: data.sound === true,
     motion: typeof data.motion === 'boolean' ? data.motion : null, // null = seguir prefers-reduced-motion
     language: LANGS[data.language] ? data.language : DEFAULT_LANG,
@@ -63,6 +90,8 @@ export function save(state) {
   const data = {
     tasks: state.tasks,
     team: state.team,
+    customTeam: state.customTeam,
+    circuit: state.circuit,
     sound: state.sound,
     motion: state.motion,
     language: state.language,

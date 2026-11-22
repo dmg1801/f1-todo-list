@@ -22,146 +22,185 @@ function poly(ctx, pts) {
 }
 
 // ---------- Monoplaza visto desde atrás (pista) ----------
-// (cx, by) = centro inferior; w = ancho en píxeles; angle = guiñada en pantalla.
+// Proporciones de un F1 actual: ~2 m de ancho, ruedas traseras de 720 mm,
+// alerón trasero a ~0,95 m. (cx, by) = centro inferior; w = ancho en píxeles.
+// El coche no se inclina: `angle` (tangente de la curva) solo se usa para el reflejo.
 export function drawCarRear(ctx, cx, by, w, angle, L, o = {}) {
   ctx.save();
   ctx.globalAlpha = o.alpha ?? 1;
   ctx.translate(cx, by);
-  // sombra sin rotar
   ctx.fillStyle = 'rgba(0,0,0,0.45)';
-  ctx.beginPath(); ctx.ellipse(0, -w * 0.01, w * 0.56, w * 0.07, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(0, -w * 0.006, w * 0.58, w * 0.055, 0, 0, Math.PI * 2); ctx.fill();
   ctx.scale(w, w);
-  const steer = Math.max(-0.05, Math.min(0.05, angle * 0.18)); // giro de dirección, sin inclinar el coche
-  const dark = '#111214';
-  // ruedas delanteras (más lejos)
-  ctx.fillStyle = '#151515';
-  rr(ctx, -0.45 + steer, -0.37, 0.13, 0.19, 0.03); ctx.fill();
-  rr(ctx, 0.32 + steer, -0.37, 0.13, 0.19, 0.03); ctx.fill();
-  // pontones
-  ctx.fillStyle = shade(L.body, -0.18);
-  poly(ctx, [[-0.37, -0.1], [-0.34, -0.3], [-0.14, -0.37], [0.14, -0.37], [0.34, -0.3], [0.37, -0.1]]); ctx.fill();
-  ctx.fillStyle = L.second;
-  poly(ctx, [[-0.35, -0.2], [-0.33, -0.27], [-0.18, -0.31], [-0.18, -0.24]]); ctx.fill();
-  poly(ctx, [[0.35, -0.2], [0.33, -0.27], [0.18, -0.31], [0.18, -0.24]]); ctx.fill();
-  // cubierta del motor
-  ctx.fillStyle = L.body;
-  poly(ctx, [[-0.17, -0.1], [-0.085, -0.52], [0.085, -0.52], [0.17, -0.1]]); ctx.fill();
-  ctx.fillStyle = L.trim;
-  poly(ctx, [[-0.03, -0.12], [-0.018, -0.5], [0.018, -0.5], [0.03, -0.12]]); ctx.fill();
-  // casco + halo
-  ctx.fillStyle = L.trim;
-  ctx.beginPath(); ctx.arc(0, -0.5, 0.07, 0, Math.PI * 2); ctx.fill();
-  ctx.fillStyle = shade(L.second, -0.2);
-  rr(ctx, -0.05, -0.53, 0.1, 0.03, 0.01); ctx.fill();
-  ctx.strokeStyle = dark; ctx.lineWidth = 0.025;
-  ctx.beginPath(); ctx.moveTo(-0.11, -0.44); ctx.quadraticCurveTo(0, -0.62, 0.11, -0.44); ctx.stroke();
-  // ruedas traseras
-  ctx.fillStyle = '#121212';
-  rr(ctx, -0.53, -0.35, 0.2, 0.35, 0.045); ctx.fill();
-  rr(ctx, 0.33, -0.35, 0.2, 0.35, 0.045); ctx.fill();
-  ctx.strokeStyle = 'rgba(255,255,255,0.07)'; ctx.lineWidth = 0.012;
-  const ph = ((o.phase || 0) % 1) * 0.07;
-  for (let k = 0; k < 5; k++) {
-    const y = -0.33 + k * 0.07 + ph;
-    ctx.beginPath(); ctx.moveTo(-0.51, y); ctx.lineTo(-0.35, y); ctx.moveTo(0.35, y); ctx.lineTo(0.51, y); ctx.stroke();
-  }
-  ctx.fillStyle = o.tyreBand || '#e10600';
-  ctx.fillRect(-0.53, -0.2, 0.015, 0.05); ctx.fillRect(0.515, -0.2, 0.015, 0.05);
-  // difusor
-  ctx.fillStyle = '#0b0b0b';
-  rr(ctx, -0.25, -0.11, 0.5, 0.09, 0.02); ctx.fill();
-  ctx.fillStyle = '#232323';
-  for (let k = -2; k <= 2; k++) ctx.fillRect(k * 0.09 - 0.006, -0.11, 0.012, 0.09);
-  // luz de lluvia / freno
-  ctx.fillStyle = o.brake ? '#ff2a2a' : '#7a1010';
-  if (o.brake) { ctx.shadowColor = '#ff2020'; ctx.shadowBlur = 0.2; }
-  ctx.fillRect(-0.04, -0.21, 0.08, 0.04);
-  ctx.shadowBlur = 0;
-  // alerón trasero
+  const dark = '#0e0f11';
+  // borde del fondo plano
   ctx.fillStyle = dark;
-  ctx.fillRect(-0.02, -0.6, 0.04, 0.12);
-  ctx.fillStyle = L.second;
-  ctx.fillRect(-0.44, -0.7, 0.05, 0.4); ctx.fillRect(0.39, -0.7, 0.05, 0.4);
+  rr(ctx, -0.37, -0.055, 0.74, 0.035, 0.012); ctx.fill();
+  // pontones
+  ctx.fillStyle = shade(L.body, -0.14);
+  ctx.beginPath();
+  ctx.moveTo(-0.35, -0.05);
+  ctx.bezierCurveTo(-0.35, -0.13, -0.27, -0.205, -0.12, -0.225);
+  ctx.lineTo(0.12, -0.225);
+  ctx.bezierCurveTo(0.27, -0.205, 0.35, -0.13, 0.35, -0.05);
+  ctx.closePath(); ctx.fill();
+  ctx.strokeStyle = L.second; ctx.lineWidth = 0.022; ctx.lineCap = 'round';
+  [-1, 1].forEach(sd => {
+    ctx.beginPath(); ctx.moveTo(sd * 0.32, -0.085); ctx.bezierCurveTo(sd * 0.29, -0.15, sd * 0.21, -0.19, sd * 0.13, -0.198); ctx.stroke();
+  });
+  // cubierta del motor y toma de aire
   ctx.fillStyle = L.body;
-  ctx.fillRect(-0.44, -0.69, 0.88, 0.085);
+  ctx.beginPath();
+  ctx.moveTo(-0.155, -0.07);
+  ctx.bezierCurveTo(-0.155, -0.2, -0.095, -0.37, -0.07, -0.465);
+  ctx.quadraticCurveTo(0, -0.515, 0.07, -0.465);
+  ctx.bezierCurveTo(0.095, -0.37, 0.155, -0.2, 0.155, -0.07);
+  ctx.closePath(); ctx.fill();
   ctx.fillStyle = L.trim;
-  ctx.fillRect(-0.44, -0.725, 0.88, 0.04);
+  ctx.beginPath();
+  ctx.moveTo(-0.022, -0.1); ctx.lineTo(-0.012, -0.47); ctx.lineTo(0.012, -0.47); ctx.lineTo(0.022, -0.1);
+  ctx.closePath(); ctx.fill();
+  ctx.fillStyle = dark;
+  ctx.beginPath(); ctx.ellipse(0, -0.462, 0.03, 0.018, 0, 0, Math.PI * 2); ctx.fill();
+  // retrovisores
+  ctx.strokeStyle = dark; ctx.lineWidth = 0.012;
+  [-1, 1].forEach(sd => {
+    ctx.beginPath(); ctx.moveTo(sd * 0.1, -0.3); ctx.lineTo(sd * 0.24, -0.33); ctx.stroke();
+    ctx.fillStyle = L.body; rr(ctx, sd > 0 ? 0.22 : -0.29, -0.355, 0.07, 0.035, 0.012); ctx.fill();
+  });
+  // estructura trasera y luz de lluvia
+  ctx.fillStyle = dark;
+  rr(ctx, -0.055, -0.205, 0.11, 0.1, 0.02); ctx.fill();
+  ctx.fillStyle = o.brake ? '#ff3030' : '#7a1010';
+  if (o.brake) { ctx.shadowColor = '#ff2020'; ctx.shadowBlur = 0.25; }
+  rr(ctx, -0.032, -0.19, 0.064, 0.03, 0.008); ctx.fill();
+  ctx.shadowBlur = 0;
+  // difusor
+  ctx.fillStyle = '#09090a';
+  ctx.beginPath(); ctx.moveTo(-0.3, 0); ctx.lineTo(-0.26, -0.1); ctx.lineTo(0.26, -0.1); ctx.lineTo(0.3, 0); ctx.closePath(); ctx.fill();
+  ctx.strokeStyle = '#2a2c31'; ctx.lineWidth = 0.008;
+  [-0.18, -0.09, 0.09, 0.18].forEach(fx => { ctx.beginPath(); ctx.moveTo(fx * 1.08, -0.005); ctx.lineTo(fx, -0.095); ctx.stroke(); });
+  // ruedas traseras
+  const ph = ((o.phase || 0) % 1);
+  [-1, 1].forEach(sd => {
+    const x0 = sd * 0.405;
+    ctx.fillStyle = '#121213';
+    rr(ctx, x0 - 0.097, -0.365, 0.194, 0.365, 0.06); ctx.fill();
+    ctx.fillStyle = '#1c1d1f';
+    rr(ctx, x0 - 0.07, -0.35, 0.14, 0.335, 0.05); ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.06)'; ctx.lineWidth = 0.01;
+    for (let k = 0; k < 5; k++) {
+      const y = -0.34 + ((k + ph) % 5) * 0.067;
+      ctx.beginPath(); ctx.moveTo(x0 - 0.07, y); ctx.lineTo(x0 + 0.07, y); ctx.stroke();
+    }
+    ctx.fillStyle = o.tyreBand || '#e10600';
+    ctx.fillRect(x0 + sd * 0.088 - 0.006, -0.26, 0.012, 0.15);
+  });
+  // ala inferior (beam wing)
+  ctx.fillStyle = dark;
+  rr(ctx, -0.24, -0.25, 0.48, 0.022, 0.01); ctx.fill();
+  // soporte "cuello de cisne"
+  ctx.strokeStyle = dark; ctx.lineWidth = 0.014;
+  [-0.04, 0.04].forEach(px => { ctx.beginPath(); ctx.moveTo(px, -0.44); ctx.lineTo(px * 0.7, -0.505); ctx.stroke(); });
+  // placas laterales del alerón trasero
+  ctx.fillStyle = L.second;
+  [-1, 1].forEach(sd => {
+    ctx.beginPath();
+    ctx.moveTo(sd * 0.25, -0.24); ctx.lineTo(sd * 0.272, -0.24);
+    ctx.lineTo(sd * 0.272, -0.5); ctx.quadraticCurveTo(sd * 0.272, -0.53, sd * 0.25, -0.528);
+    ctx.closePath(); ctx.fill();
+  });
+  // plano principal y flap (DRS) con ligera curvatura
+  ctx.fillStyle = L.body;
+  ctx.beginPath();
+  ctx.moveTo(-0.252, -0.452); ctx.quadraticCurveTo(0, -0.432, 0.252, -0.452);
+  ctx.lineTo(0.252, -0.48); ctx.quadraticCurveTo(0, -0.46, -0.252, -0.48); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = L.trim;
+  ctx.beginPath();
+  ctx.moveTo(-0.252, -0.49); ctx.quadraticCurveTo(0, -0.474, 0.252, -0.49);
+  ctx.lineTo(0.252, -0.515); ctx.quadraticCurveTo(0, -0.5, -0.252, -0.515); ctx.closePath(); ctx.fill();
   if (o.blueFlag) {
     ctx.fillStyle = '#2b7bff';
-    ctx.fillRect(-0.07, -0.8, 0.14, 0.06);
+    rr(ctx, -0.06, -0.6, 0.12, 0.05, 0.01); ctx.fill();
   }
   ctx.restore();
 }
 
-// ---------- Rueda vista de perfil ----------
+// ---------- Rueda vista de perfil (llanta de 18" con tapacubos) ----------
 function drawWheel(ctx, x, y, r, state, spin) {
   if (state === 'none') {
     ctx.fillStyle = '#7a3a12';
-    ctx.beginPath(); ctx.arc(x, y, r * 0.42, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(x, y, r * 0.5, 0, Math.PI * 2); ctx.fill();
     ctx.fillStyle = '#3a3d42';
-    ctx.beginPath(); ctx.arc(x, y, r * 0.2, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(x, y, r * 0.26, 0, Math.PI * 2); ctx.fill();
     ctx.fillStyle = '#c9ccd1';
-    ctx.beginPath(); ctx.arc(x, y, r * 0.08, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(x, y, r * 0.1, 0, Math.PI * 2); ctx.fill();
     return;
   }
   drawTyre(ctx, x, y, r, state === 'old', spin);
 }
 
 export function drawTyre(ctx, x, y, r, old, spin = 0) {
-  ctx.fillStyle = old ? '#2c2723' : '#141414';
+  ctx.fillStyle = old ? '#2c2723' : '#121213';
   ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
   ctx.strokeStyle = old ? '#6e5148' : '#e10600';
-  ctx.lineWidth = r * 0.09;
-  ctx.beginPath(); ctx.arc(x, y, r * 0.78, 0, Math.PI * 2); ctx.stroke();
-  ctx.fillStyle = old ? '#4a4744' : '#2d3036';
-  ctx.beginPath(); ctx.arc(x, y, r * 0.6, 0, Math.PI * 2); ctx.fill();
-  ctx.strokeStyle = old ? '#6b6763' : '#9aa0a8';
-  ctx.lineWidth = r * 0.08;
-  for (let k = 0; k < 5; k++) {
-    const a = spin + k * Math.PI * 2 / 5;
-    ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + Math.cos(a) * r * 0.55, y + Math.sin(a) * r * 0.55); ctx.stroke();
-  }
-  ctx.fillStyle = '#d0d3d8';
-  ctx.beginPath(); ctx.arc(x, y, r * 0.13, 0, Math.PI * 2); ctx.fill();
+  ctx.lineWidth = r * 0.07;
+  ctx.beginPath(); ctx.arc(x, y, r * 0.84, spin, spin + Math.PI * 1.6); ctx.stroke();
+  ctx.fillStyle = old ? '#3c3936' : '#26292e';
+  ctx.beginPath(); ctx.arc(x, y, r * 0.66, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = old ? '#55524f' : '#4a4f57';
+  ctx.lineWidth = r * 0.05;
+  ctx.beginPath(); ctx.arc(x, y, r * 0.5, 0, Math.PI * 2); ctx.stroke();
+  ctx.fillStyle = '#c9ccd1';
+  ctx.beginPath(); ctx.arc(x, y, r * 0.12, 0, Math.PI * 2); ctx.fill();
   if (old) {
     ctx.fillStyle = 'rgba(120,100,90,0.7)';
     for (let k = 0; k < 7; k++) {
       const a = k * 0.9 + 0.3;
-      ctx.beginPath(); ctx.arc(x + Math.cos(a) * r * 0.9, y + Math.sin(a) * r * 0.9, r * 0.05, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(x + Math.cos(a) * r * 0.93, y + Math.sin(a) * r * 0.93, r * 0.05, 0, Math.PI * 2); ctx.fill();
     }
   }
 }
 
-// ---------- Alerón delantero (perfil) ----------
+// ---------- Alerón delantero (perfil): tres planos y placa final ----------
+// (x, y) = extremo trasero inferior; s = longitud de referencia del coche en px.
 export function drawFrontWing(ctx, x, y, s, L, old) {
-  // x,y = extremo trasero inferior; s = longitud del coche
   ctx.save();
   ctx.translate(x, y); ctx.scale(s, s);
-  ctx.fillStyle = old ? shade(L.body, -0.45) : L.body;
-  rr(ctx, 0, -0.024, 0.18, 0.022, 0.006); ctx.fill();
+  const main = old ? shade(L.body, -0.45) : L.body;
+  for (let i = 0; i < 3; i++) {
+    ctx.fillStyle = i === 2 ? (old ? '#555' : L.trim) : main;
+    ctx.beginPath();
+    const y0 = -0.002 - i * 0.0105, lift = i * 0.006;
+    ctx.moveTo(0.012 + i * 0.012, y0);
+    ctx.quadraticCurveTo(0.08, y0 - 0.004 - lift, 0.15, y0 - 0.01 - lift);
+    ctx.lineTo(0.15, y0 - 0.017 - lift);
+    ctx.quadraticCurveTo(0.08, y0 - 0.011 - lift, 0.012 + i * 0.012, y0 - 0.007);
+    ctx.closePath(); ctx.fill();
+  }
   ctx.fillStyle = old ? '#444' : L.second;
-  if (old) poly(ctx, [[0.12, -0.075], [0.17, -0.075], [0.175, -0.04], [0.15, -0.03], [0.12, -0.026]]);
-  else poly(ctx, [[0.12, -0.078], [0.175, -0.078], [0.18, -0.024], [0.12, -0.024]]);
-  ctx.fill();
-  ctx.fillStyle = old ? '#555' : L.trim;
-  ctx.fillRect(0, -0.03, 0.16, 0.006);
+  ctx.beginPath();
+  if (old) { ctx.moveTo(0.12, 0); ctx.lineTo(0.16, 0); ctx.lineTo(0.16, -0.03); ctx.lineTo(0.145, -0.038); ctx.lineTo(0.13, -0.028); ctx.lineTo(0.12, -0.034); }
+  else { ctx.moveTo(0.118, 0); ctx.lineTo(0.162, 0); ctx.lineTo(0.162, -0.042); ctx.quadraticCurveTo(0.16, -0.052, 0.145, -0.052); ctx.lineTo(0.118, -0.046); }
+  ctx.closePath(); ctx.fill();
   if (old) {
-    ctx.strokeStyle = '#e8e8e8'; ctx.lineWidth = 0.004;
-    ctx.beginPath(); ctx.moveTo(0.06, -0.024); ctx.lineTo(0.07, -0.012); ctx.lineTo(0.064, -0.006); ctx.lineTo(0.075, -0.002); ctx.stroke();
+    ctx.strokeStyle = '#e8e8e8'; ctx.lineWidth = 0.003;
+    ctx.beginPath(); ctx.moveTo(0.06, -0.006); ctx.lineTo(0.07, -0.016); ctx.lineTo(0.064, -0.022); ctx.lineTo(0.075, -0.03); ctx.stroke();
   }
   ctx.restore();
 }
 
 // ---------- Monoplaza de perfil (garaje). Morro a la derecha. ----------
-// st = { wheelF, wheelR: 'new'|'old'|'none', wing: 'new'|'old'|'none', driverIn, lift(0..1), brake, spin }
+// Proporciones reales: 5,6 m de largo, batalla de 3,6 m, ruedas de 720 mm, <1 m de alto.
 export function carGeometry(x, gy, Lpx, lift = 0) {
-  const y = gy - lift * Lpx * 0.05;
+  const y = gy - lift * Lpx * 0.035;
+  const r = 0.064 * Lpx;
   return {
     y,
-    front: { x: x + 0.31 * Lpx, y: y - 0.105 * Lpx, r: 0.105 * Lpx },
-    rear: { x: x - 0.33 * Lpx, y: y - 0.11 * Lpx, r: 0.11 * Lpx },
-    nose: { x: x + 0.47 * Lpx, y: y - 0.04 * Lpx },
-    cockpit: { x: x - 0.02 * Lpx, y: y - 0.26 * Lpx }
+    front: { x: x + 0.3 * Lpx, y: y - r, r },
+    rear: { x: x - 0.34 * Lpx, y: y - r, r },
+    nose: { x: x + 0.5 * Lpx, y: y - 0.03 * Lpx },
+    cockpit: { x: x - 0.02 * Lpx, y: y - 0.16 * Lpx }
   };
 }
 
@@ -169,69 +208,110 @@ export function drawCarSide(ctx, x, gy, Lpx, L, st) {
   const g = carGeometry(x, gy, Lpx, st.lift || 0);
   // sombra
   ctx.fillStyle = 'rgba(0,0,0,0.4)';
-  ctx.beginPath(); ctx.ellipse(x, gy, Lpx * 0.55, Lpx * 0.03, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(x, gy, Lpx * 0.54, Lpx * 0.022, 0, 0, Math.PI * 2); ctx.fill();
   // caballetes
   if ((st.lift || 0) > 0.05) {
-    ctx.fillStyle = '#d9b21c';
     const h = gy - g.y;
-    [g.front.x - Lpx * 0.07, g.rear.x + Lpx * 0.08].forEach(sx => {
-      poly(ctx, [[sx - Lpx * 0.03, gy], [sx - Lpx * 0.012, g.y - Lpx * 0.04], [sx + Lpx * 0.012, g.y - Lpx * 0.04], [sx + Lpx * 0.03, gy]]); ctx.fill();
+    [g.front.x - Lpx * 0.06, g.rear.x + Lpx * 0.07].forEach(sx => {
+      ctx.fillStyle = '#d9b21c';
+      poly(ctx, [[sx - Lpx * 0.028, gy], [sx - Lpx * 0.01, g.y - Lpx * 0.025], [sx + Lpx * 0.01, g.y - Lpx * 0.025], [sx + Lpx * 0.028, gy]]); ctx.fill();
+      ctx.fillStyle = '#1b1b1b';
+      ctx.fillRect(sx - Lpx * 0.018, gy - h * 0.55, Lpx * 0.036, Math.max(2, h * 0.15));
     });
-    ctx.fillStyle = '#1b1b1b';
-    [g.front.x - Lpx * 0.07, g.rear.x + Lpx * 0.08].forEach(sx => ctx.fillRect(sx - Lpx * 0.02, gy - h * 0.55, Lpx * 0.04, Math.max(2, h * 0.12)));
   }
   ctx.save();
   ctx.translate(x, g.y); ctx.scale(Lpx, Lpx);
-  // fondo plano
-  ctx.fillStyle = '#121212';
-  ctx.fillRect(-0.45, -0.058, 0.88, 0.028);
-  // alerón trasero: soporte, placa lateral y dos planos
-  ctx.fillStyle = '#151515'; ctx.fillRect(-0.47, -0.3, 0.018, 0.16);
-  ctx.fillStyle = shade(L.body, -0.35);
-  poly(ctx, [[-0.535, -0.34], [-0.455, -0.34], [-0.44, -0.16], [-0.52, -0.15]]); ctx.fill();
-  ctx.fillStyle = L.second; ctx.fillRect(-0.53, -0.27, 0.08, 0.02);
-  ctx.fillStyle = L.body; poly(ctx, [[-0.55, -0.335], [-0.43, -0.345], [-0.43, -0.322], [-0.55, -0.315]]); ctx.fill();
-  ctx.fillStyle = L.trim; poly(ctx, [[-0.545, -0.36], [-0.44, -0.37], [-0.44, -0.355], [-0.545, -0.346]]); ctx.fill();
-  // carrocería
-  ctx.fillStyle = L.body;
-  poly(ctx, [[0.53, -0.075], [0.46, -0.092], [0.3, -0.122], [0.12, -0.156], [0.06, -0.176], [-0.02, -0.182], [-0.08, -0.27], [-0.15, -0.285], [-0.23, -0.22], [-0.4, -0.172], [-0.46, -0.162], [-0.46, -0.058], [0.42, -0.055], [0.53, -0.06]]);
-  ctx.fill();
-  // pontón
-  ctx.fillStyle = shade(L.body, -0.2);
-  poly(ctx, [[0.1, -0.148], [-0.05, -0.16], [-0.3, -0.15], [-0.37, -0.075], [0.14, -0.066]]); ctx.fill();
+  ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  const dark = '#101113';
+  // alerón trasero: placa lateral, planos y soporte
+  ctx.strokeStyle = dark; ctx.lineWidth = 0.007;
+  ctx.beginPath(); ctx.moveTo(-0.39, -0.1); ctx.quadraticCurveTo(-0.43, -0.12, -0.465, -0.162); ctx.stroke();
   ctx.fillStyle = L.second;
-  poly(ctx, [[0.08, -0.13], [-0.25, -0.13], [-0.3, -0.1], [0.11, -0.1]]); ctx.fill();
-  // línea de ribete
-  ctx.strokeStyle = L.trim; ctx.lineWidth = 0.012;
-  ctx.beginPath(); ctx.moveTo(0.52, -0.072); ctx.lineTo(0.3, -0.108); ctx.lineTo(0.06, -0.146); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(-0.09, -0.258); ctx.lineTo(-0.22, -0.205); ctx.lineTo(-0.44, -0.16); ctx.stroke();
-  // toma de aire
-  ctx.fillStyle = '#0c0c0c';
-  rr(ctx, -0.115, -0.275, 0.04, 0.03, 0.008); ctx.fill();
-  // cockpit
-  ctx.fillStyle = '#0d0d0d';
-  ctx.beginPath(); ctx.ellipse(-0.02, -0.18, 0.06, 0.016, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(-0.535, -0.06); ctx.lineTo(-0.452, -0.066); ctx.lineTo(-0.444, -0.168);
+  ctx.quadraticCurveTo(-0.45, -0.18, -0.47, -0.18); ctx.lineTo(-0.535, -0.18); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = L.trim;
+  ctx.beginPath(); ctx.moveTo(-0.535, -0.12); ctx.lineTo(-0.45, -0.14); ctx.lineTo(-0.449, -0.15); ctx.lineTo(-0.535, -0.13); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = L.body;
+  ctx.beginPath(); ctx.ellipse(-0.49, -0.168, 0.045, 0.007, -0.08, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = dark;
+  ctx.beginPath(); ctx.ellipse(-0.488, -0.075, 0.035, 0.005, -0.05, 0, Math.PI * 2); ctx.fill();
+  // fondo plano y difusor
+  ctx.fillStyle = dark;
+  ctx.beginPath();
+  ctx.moveTo(0.25, -0.012); ctx.lineTo(-0.43, -0.012); ctx.lineTo(-0.47, -0.048); ctx.lineTo(-0.43, -0.03); ctx.lineTo(0.23, -0.03);
+  ctx.closePath(); ctx.fill();
+  // carrocería principal
+  ctx.fillStyle = L.body;
+  ctx.beginPath();
+  ctx.moveTo(0.505, -0.04);
+  ctx.bezierCurveTo(0.45, -0.048, 0.36, -0.068, 0.24, -0.088);
+  ctx.lineTo(0.1, -0.104);
+  ctx.bezierCurveTo(0.075, -0.108, 0.06, -0.112, 0.05, -0.113);
+  ctx.lineTo(-0.055, -0.113);
+  ctx.bezierCurveTo(-0.065, -0.14, -0.075, -0.166, -0.095, -0.172);
+  ctx.lineTo(-0.13, -0.172);
+  ctx.bezierCurveTo(-0.2, -0.152, -0.3, -0.122, -0.42, -0.097);
+  ctx.lineTo(-0.445, -0.078);
+  ctx.lineTo(-0.432, -0.03);
+  ctx.lineTo(0.24, -0.03);
+  ctx.bezierCurveTo(0.33, -0.034, 0.42, -0.031, 0.505, -0.034);
+  ctx.closePath(); ctx.fill();
+  // aleta de tiburón
+  ctx.fillStyle = shade(L.body, -0.12);
+  ctx.beginPath(); ctx.moveTo(-0.14, -0.169); ctx.lineTo(-0.36, -0.13); ctx.lineTo(-0.385, -0.102); ctx.lineTo(-0.3, -0.118); ctx.closePath(); ctx.fill();
+  // pontón con cintura (undercut)
+  ctx.fillStyle = shade(L.body, -0.2);
+  ctx.beginPath();
+  ctx.moveTo(0.14, -0.058); ctx.lineTo(0.14, -0.098);
+  ctx.bezierCurveTo(0.05, -0.103, -0.05, -0.1, -0.15, -0.086);
+  ctx.bezierCurveTo(-0.25, -0.071, -0.33, -0.057, -0.4, -0.052);
+  ctx.lineTo(-0.4, -0.032); ctx.lineTo(0.02, -0.032);
+  ctx.bezierCurveTo(0.08, -0.034, 0.12, -0.044, 0.14, -0.058);
+  ctx.closePath(); ctx.fill();
+  ctx.strokeStyle = L.second; ctx.lineWidth = 0.012;
+  ctx.beginPath(); ctx.moveTo(0.12, -0.08); ctx.bezierCurveTo(0.02, -0.085, -0.12, -0.078, -0.3, -0.05); ctx.stroke();
+  ctx.fillStyle = '#0a0a0b';
+  rr(ctx, 0.128, -0.097, 0.016, 0.036, 0.006); ctx.fill();
+  // líneas de ribete
+  ctx.strokeStyle = L.trim; ctx.lineWidth = 0.006;
+  ctx.beginPath(); ctx.moveTo(0.49, -0.043); ctx.bezierCurveTo(0.42, -0.054, 0.33, -0.07, 0.22, -0.086); ctx.lineTo(0.1, -0.1); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(-0.14, -0.16); ctx.bezierCurveTo(-0.22, -0.14, -0.31, -0.115, -0.415, -0.094); ctx.stroke();
+  // cockpit, piloto y halo
+  ctx.fillStyle = '#0b0b0c';
+  rr(ctx, -0.056, -0.117, 0.106, 0.009, 0.004); ctx.fill();
   if (st.driverIn) {
     ctx.fillStyle = L.trim;
-    ctx.beginPath(); ctx.arc(-0.025, -0.205, 0.034, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(-0.02, -0.128, 0.022, 0, Math.PI * 2); ctx.fill();
     ctx.fillStyle = '#1c2633';
-    rr(ctx, -0.012, -0.218, 0.03, 0.014, 0.004); ctx.fill();
+    rr(ctx, -0.006, -0.136, 0.026, 0.01, 0.004); ctx.fill();
   }
-  // halo
-  ctx.strokeStyle = '#1a1a1a'; ctx.lineWidth = 0.013;
-  ctx.beginPath(); ctx.moveTo(0.065, -0.172); ctx.quadraticCurveTo(0.03, -0.25, -0.09, -0.236); ctx.stroke();
-  // luz
+  ctx.strokeStyle = '#1b1c1f'; ctx.lineWidth = 0.008;
+  ctx.beginPath(); ctx.moveTo(0.064, -0.11); ctx.bezierCurveTo(0.04, -0.152, -0.02, -0.155, -0.058, -0.142); ctx.stroke();
+  // toma de aire
+  ctx.fillStyle = '#0a0a0b';
+  rr(ctx, -0.104, -0.168, 0.012, 0.022, 0.005); ctx.fill();
+  // retrovisor
+  ctx.strokeStyle = dark; ctx.lineWidth = 0.004;
+  ctx.beginPath(); ctx.moveTo(0.09, -0.106); ctx.lineTo(0.085, -0.124); ctx.stroke();
+  ctx.fillStyle = L.body; rr(ctx, 0.07, -0.132, 0.03, 0.012, 0.004); ctx.fill();
+  // suspensión
+  ctx.strokeStyle = '#1f2125'; ctx.lineWidth = 0.005;
+  const fr = (g.front.x - x) / Lpx, rw = (g.rear.x - x) / Lpx, wy = (g.front.y - g.y) / Lpx;
+  [[0.2, -0.068], [0.2, -0.092]].forEach(([px, py]) => { ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(fr, wy); ctx.stroke(); });
+  [[-0.25, -0.05], [-0.25, -0.08]].forEach(([px, py]) => { ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(rw, wy); ctx.stroke(); });
+  // luz trasera
   ctx.fillStyle = st.brake ? '#ff3030' : '#6a1010';
-  ctx.fillRect(-0.475, -0.12, 0.018, 0.02);
+  rr(ctx, -0.452, -0.075, 0.012, 0.014, 0.003); ctx.fill();
   ctx.restore();
   // alerón delantero
-  if (st.wing === 'new' || st.wing === 'old') drawFrontWing(ctx, x + 0.38 * Lpx, g.y - 0.034 * Lpx, Lpx, L, st.wing === 'old');
+  if (st.wing === 'new' || st.wing === 'old') drawFrontWing(ctx, x + 0.355 * Lpx, g.y - 0.012 * Lpx, Lpx, L, st.wing === 'old');
   // ruedas
   drawWheel(ctx, g.rear.x, g.rear.y, g.rear.r, st.wheelR, st.spin || 0);
   drawWheel(ctx, g.front.x, g.front.y, g.front.r, st.wheelF, st.spin || 0);
   if (st.brake) {
     ctx.fillStyle = 'rgba(255,120,40,0.55)';
-    ctx.beginPath(); ctx.arc(g.front.x, g.front.y, g.front.r * 0.25, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(g.front.x, g.front.y, g.front.r * 0.3, 0, Math.PI * 2); ctx.fill();
   }
   return g;
 }

@@ -1,6 +1,6 @@
 # F1 To-Do-List
 
-Lista de tareas gamificada como una carrera de monoplazas. Cada tarea es una vuelta: al completarla, tu coche adelanta a un rival, la radio del equipo lo celebra y, a mitad de carrera, entras en boxes. Incluye un temporizador **Pomodoro**. Funciona en móvil y escritorio, en español, inglés, alemán y turco.
+Lista de tareas gamificada como una carrera de monoplazas. Cada tarea es una vuelta: al completarla, tu coche adelanta a un rival, la radio del equipo lo celebra y, a mitad de carrera, entras en boxes. Incluye un temporizador **Pomodoro**, **seis circuitos** (Mónaco, Estambul, Las Vegas, Madrid, Berlín y Tokio) y un editor para crear **tu propia escudería**. Funciona en móvil y escritorio, en español, inglés, alemán y turco.
 
 Es una app **estática** (HTML, CSS y JavaScript sin dependencias). No necesita servidor propio, base de datos, claves ni `npm install`.
 
@@ -41,6 +41,26 @@ GitHub Pages solo sirve archivos: no hay ningún servidor que envíe avisos.
 - Se guarda qué avisos se mostraron y cuáles descartaste, así que no se repiten. Completar o eliminar una tarea quita su aviso; si cambias la hora, se vuelve a programar.
 - Las notificaciones del sistema son opcionales (Ajustes → *Activar notificaciones*). Si el navegador las bloquea o no las admite, los avisos siguen apareciendo dentro de la app. En Android se envían a través del pequeño Service Worker (`sw.js`).
 
+## Circuitos
+
+Cada carrera nueva pasa al siguiente circuito del calendario: Mónaco → Estambul → Las Vegas → Madrid → Berlín → Tokio → Mónaco… Con el botón **Circuito** puedes cambiarlo a mano en cualquier momento, sin perder la carrera.
+
+Cada circuito tiene su propio trazado, su luz y su paisaje: muros y túnel en Mónaco, la curva larga de varios vértices en Estambul, neones de noche en Las Vegas, túnel y torres en Madrid, y el cielo gris de Berlín o los neones de Tokio. Berlín y Tokio son circuitos imaginados. Todos los paisajes son siluetas originales dibujadas por código.
+
+Para añadir o retocar un circuito:
+- **Trazado y colores:** edita `js/circuits.js`. `plan` es una lista de tramos `[segmentos, curvatura]` (curvatura positiva = derecha, negativa = izquierda) y una `'T'` marca un túnel.
+- **Paisaje:** el dibujo de fondo está en `js/scene/backdrops.js`.
+- **Nombre y descripción:** añade `ci_<id>` y `cd_<id>` en `js/i18n.js`.
+
+## Escudería propia
+
+En el selector del escudo, la primera opción es **Crear tu escudería**. En el editor eliges:
+- el nombre de la escudería;
+- los tres colores del coche: principal, secundario y detalles;
+- el escudo: forma, símbolo, colores e iniciales (hasta 3).
+
+La vista previa del escudo y del coche se actualiza en vivo. Al guardar, tu escudería pasa a ser la activa y cambian el coche, el uniforme de los mecánicos y los colores de la interfaz. Si tus colores son muy oscuros, el color de acento de la interfaz se aclara para que siga siendo legible. Puedes editarla cuando quieras con el lápiz que aparece junto a ella, o volver a cualquiera de las 11 escuderías.
+
 ## Pomodoro
 
 El panel Pomodoro sigue la técnica clásica:
@@ -67,6 +87,9 @@ Al acabar el descanso, por defecto esperas a pulsar *Empezar pomodoro*. Si prefi
 | `js/teams.js` | Fuente | Escuderías, libreas y acentos de interfaz |
 | `js/reminders.js` | Fuente | Recordatorios y notificaciones |
 | `js/pomodoro.js` | Fuente | Temporizador Pomodoro (25/5/15) |
+| `js/circuits.js` | Fuente | Circuitos: trazado, colores y calendario |
+| `js/emblem.js` | Fuente | Generador de escudos de la escudería propia |
+| `js/scene/backdrops.js` | Fuente | Paisajes de cada circuito |
 | `js/audio.js` | Fuente | Efectos (Web Audio) y voz (speechSynthesis) |
 | `js/scene/director.js` | Fuente | Estados de escena y cola de animaciones |
 | `js/scene/track.js` | Fuente | Pista pseudo-3D y adelantamientos |
@@ -75,13 +98,14 @@ Al acabar el descanso, por defecto esperas a pulsar *Empezar pomodoro*. Si prefi
 | `sw.js`, `manifest.webmanifest` | Fuente | Notificaciones en Android, uso sin conexión e instalación |
 | `assets/teams/*.svg` | Recursos | Un emblema por escudería |
 | `assets/flags/*.svg` | Recursos | Banderas del selector de idioma |
+| `assets/f1-to-do-list.mp3` | Recursos | Música al añadir una tarea (con el sonido activado) |
 | `assets/icons/` | Recursos | Iconos de la app |
 | `README.md` | Documentación | Este archivo |
 | `.nojekyll` | Configuración | Evita el procesado Jekyll de GitHub Pages |
 
 ### Datos guardados
 
-Clave `pitwall-gp-v1` en `localStorage`:
+Clave `pitwall-gp-v1` en `localStorage` (conserva el nombre antiguo a propósito: si se cambiara, las tareas ya guardadas dejarían de verse):
 
 ```json
 {
@@ -89,6 +113,9 @@ Clave `pitwall-gp-v1` en `localStorage`:
               "done": false, "fired": false, "dismissed": false,
               "late": false, "created": 1767139200000, "completedAt": null, "pomodoros": 0 }],
   "team": "ferrari", "sound": false, "motion": null, "language": "es", "pitLaps": [],
+  "circuit": "monaco",
+  "customTeam": { "name": "Mi escudería", "body": "#1e6bff", "second": "#0e1a33", "trim": "#ffd23f",
+                  "emblem": { "shape": "shield", "symbol": "bolt", "bg": "#0e1a33", "fg": "#ffd23f", "border": "#1e6bff", "initials": "ME" } },
   "pomodoro": { "phase": "idle", "endsAt": null, "remaining": null, "paused": false,
                 "cycle": 0, "day": "2026-11-21", "today": 0, "taskId": null, "auto": false, "sound": true }
 }
@@ -120,8 +147,9 @@ Los emblemas incluidos son **diseños originales de F1 To-Do-List**, distintos d
 | `assets/teams/*.svg` | Diseños originales creados para F1 To-Do-List | Distribuidos con el proyecto |
 | `assets/icons/*` | Diseño original creado para F1 To-Do-List | Distribuidos con el proyecto |
 | `assets/flags/*.svg` | Dibujadas para F1 To-Do-List a partir de los diseños de las banderas nacionales | Las banderas nacionales son de dominio público |
+| `assets/f1-to-do-list.mp3` | Pixabay Music (*añade aquí el título, el autor y el enlace de la pista*) | [Licencia de contenido de Pixabay](https://pixabay.com/service/license-summary/): uso gratuito, también comercial, sin atribución obligatoria; no permite redistribuir la pista suelta como archivo de música |
 
-El proyecto no incluye recursos de terceros ni carga nada desde webs externas. Los nombres de escudería se usan solo como etiquetas del selector. F1 To-Do-List no tiene relación con esas marcas.
+Salvo lo indicado en la tabla, el proyecto no incluye recursos de terceros y no carga nada desde webs externas. Los nombres de escudería se usan solo como etiquetas del selector. F1 To-Do-List no tiene relación con esas marcas.
 
 ## Accesibilidad y rendimiento
 

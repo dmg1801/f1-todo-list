@@ -77,6 +77,12 @@ export class Director {
 
   want() { return Math.max(0, Math.min(3, this.model.position - 1)); }
 
+  setCircuit(c) {
+    if (this.track.circuit && this.track.circuit.id === c.id) return;
+    this.track.setCircuit(c);
+    this.renderFrame(0);
+  }
+
   setModel(m) {
     this.model = { ...m };
     this.track.setRivalCount(this.want());
@@ -299,6 +305,7 @@ export class Director {
       lapText: t('c_lap', { done: this.model.done, total: this.model.total }),
       goText: t('c_go'),
       winnerText: t('c_winner'),
+      circuitName: this.deps.getCircuitName ? this.deps.getCircuitName() : '',
       backmarker: this.track.backmarker
     };
     if (this.view === 'track') this.track.render(ctx, w, h, env);
